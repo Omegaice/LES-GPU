@@ -2,7 +2,7 @@ c     ----------------------------------------------------------------------
       module pars
 c     ----------------------------------------------------------------------
       integer, parameter :: 
-     +     iti=0000000,itmax=0060000, imean=00100, ihst=010,itape=05000,
+     +     iti=0000000,itmax=0000500, imean=00100, ihst=010,itape=05000,
      +     itstr=0000001, it_his=0000001, it_viz=0000001, i_viz=05000   !change u.le if iti >0
       integer, parameter ::
      +     noalis=1, ismlt=0, ifree=0, isfc=1, iradup=0,
@@ -25,8 +25,8 @@ c
 c     -------- number of vars, size of problem in (x,y,z), max size, max processors
 c     
       integer, parameter :: nscl = 2, nvar = (4+nscl)
-      integer, parameter :: nxg1  = 128, nyg1  = 256, nzg1  = 128
-      integer, parameter :: maxnx = 128, maxny = 256, maxnz = 128
+      integer, parameter :: nxg1  = 016, nyg1  = 016, nzg1  = 016
+      integer, parameter :: maxnx = 016, maxny = 016, maxnz = 016
 c     
 c     ------------ leave following definitions as is
 c     
@@ -536,7 +536,7 @@ c
 c -------- set number of x-y slab cpus
 c
       !ncpu_s = 16
-      ncpu_s = 8
+      ncpu_s = 2
 c
       itn      = 00
       case_inp = 'cou'
@@ -567,9 +567,8 @@ c
          if(iocean .eq. 1) then
             call randoc
          else
-            call get_fields
-c            call random   
-
+!            call get_fields
+            call random_simple
 
 c
          endif
@@ -1115,15 +1114,15 @@ c
 c
       !REPLACE XXXXXXXX WITH YOUR DATA DIRECTORY
       !Example: path_part = '/pscratch/drichte2/tutorial/part.le.cou000'
-      path_seed   = 'XXXXXXXX'
-      path_part   = 'XXXXXXXX/part.le.cou000'
-      path_res    = 'XXXXXXXX/u.le.cou000'
-      path_sav    = 'XXXXXXXX'
-      path_his    = 'XXXXXXXX'
-      path_viz_xy = 'XXXXXXXX'
-      path_viz_xz = 'XXXXXXXX'
-      path_viz_yz = 'XXXXXXXX'
-      path_stuf   = 'XXXXXXXX'
+      path_seed   = '/scratch365/drichte2/YIP/testcase/'
+      path_part   = '/scratch365/drichte2/YIP/testcase/part.le.cou000'
+      path_res    = '/scratch365/drichte2/YIP/testcase/u.le.cou000'
+      path_sav    = '/scratch365/drichte2/YIP/testcase/'
+      path_his    = '/scratch365/drichte2/YIP/testcase/'
+      path_viz_xy = '/scratch365/drichte2/YIP/testcase/'
+      path_viz_xz = '/scratch365/drichte2/YIP/testcase/'
+      path_viz_yz = '/scratch365/drichte2/YIP/testcase/'
+      path_stuf   = '/scratch365/drichte2/YIP/testcase/'
 
 c
 
@@ -5496,7 +5495,7 @@ c
          Ttop(1) = 300.15  !http://www.nasa.gov/centers/goddard/images/content/148071main_Katrina_SSHeights.jpg 
          Tbot(1) = 300.15
 c
-	 topC=(Ttop(1)-273.15)
+         topC=(Ttop(1)-273.15)
          botC=(Tbot(1)-273.15)  
          
          RHT = 95.0/100.0
@@ -5882,6 +5881,79 @@ c
 c
       return
       end
+      subroutine random_simple
+
+      use pars
+      use fields
+      use con_data
+      use con_stats
+      use particles
+      implicit none
+
+      integer :: ix,iy,iz
+
+      !Initialize partcount to 0:
+      partcount = 0.0
+      partcount_t = 0.0
+      vpsum = 0.0
+      vpsum_t = 0.0
+      vpsqrsum = 0.0
+      vpsqrsum_t = 0.0
+      upwp_t = 0.0
+      upwp = 0.0
+      Tpsum = 0.0
+      Tpsum_t = 0.0
+      Tpsqrsum = 0.0
+      Tpsqrsum_t = 0.0
+      Tfsum = 0.0
+      Tfsum_t = 0.0
+      qfsum = 0.0
+      qfsum_t = 0.0
+      wpTpsum = 0.0
+      wpTpsum_t = 0.0
+      partsrc = 0.0
+      partsrc_t = 0.0
+      partTsrc = 0.0
+      partTsrc_t = 0.0
+      partHsrc = 0.0
+      partHsrc_t = 0.0
+      partTEsrc = 0.0
+      partTEsrc_t = 0.0
+      radsum = 0.0 
+      radsum_t = 0.0 
+      rad2sum = 0.0 
+      rad2sum_t = 0.0 
+      mpsum = 0.0 !Brian 7/30/14
+      mpsum_t = 0.0 !Brian 7/30/14
+      mwsum = 0.0 !Brian 7/30/14
+      mwsum_t = 0.0 !Brian 7/30/14
+      qstarsum = 0.0
+      qstarsum_t = 0.0 
+
+      
+      do iz=izs,ize
+      do iy=iys,iye
+      do ix=1,nnx
+
+            u(ix,iy,iz) = Uo*2.0/zl*(zz(iz)-zl/2.0)
+            v(ix,iy,iz) = 0.0
+            w(ix,iy,iz) = 0.0
+            e(ix,iy,iz) = 0.0 
+            t(ix,iy,1,iz) = tsfcc(1)
+            t(ix,iy,2,iz) = tsfcc(2)
+         
+            r1(ix,iy,iz)  = 0.
+            r2(ix,iy,iz)  = 0.
+            r3(ix,iy,iz)  = 0.
+            r4(ix,iy,1,iz)= 0.
+            r4(ix,iy,2,iz)= 0.
+            r5(ix,iy,iz)  = 0.
+
+      end do
+      end do
+      end do
+
+      end subroutine random_simple
       subroutine random
 c
 c ----------- geostrophic winds designed for comparison case
@@ -9983,7 +10055,6 @@ c
 
       integer :: istage,ierr,it
       real :: g(3)
-      !real :: g(3) = (/0.0, 0.0, 0.0/)
       real :: denom,dtl,sigma,ttest
       integer :: ix,iy,iz
       real :: Rep,diff(3),diffnorm,corrfac,myRep_avg
@@ -9991,16 +10062,29 @@ c
       real :: Nup,Shp,rhop,taup_i,estar,einf !Brian 7/29/14-3
       real :: myphip_sum,myphiw_sum,myphiv_sum,Volp      
       real :: TfC,TpC,Lv,Eff_C,Eff_S,Gam,Ion,Os
-      real :: t_s,t_f,t_s1,t_f1!,qq
+      real :: t_s,t_f,t_s1,t_f1
 
       g(1:3) = (/0.0, 0.0, part_grav/)
 
       !First fill extended velocity field for interpolation
       !t_s = mpi_wtime()
-      call fill_ext 
+      !call fill_ext 
       !t_f = mpi_wtime()
       !call mpi_barrier(mpi_comm_world,ierr)
       !if (myid==5) write(*,*) 'time fill_ext:',t_f-t_s
+
+
+      !For James Sweet's testing purposes (6/3/16):
+      !Set the "ext" fields to constant values to interpolate from
+      !NOTE: This doesn't fully check that the interpolation scheme has worked!!
+      !Would have to check the interpolation from a non-constant field,
+      !but this depends on how exactly the "fill_ext" will be done on GPU
+
+      uext = 1.0 !Droplet sees uniform velocity at 1m/s
+      vext = 0.0
+      wext = 0.0
+      Text = 295.0  !Droplet sees 295K
+      T2ext = 0.0164 !Droplet sees 95% RH at 295K
 
       partcount_t = 0.0
       vpsum_t = 0.0
@@ -10024,13 +10108,11 @@ c
       !t_s = mpi_wtime()
 
 
-         !Temporarily Here? Not actually constant?
-         Gam = 7.28*10.0**(-2) !N/m
-         Ion = 2.0
-         Os = 1.093
+      !Temporarily Here? Not actually constant?
+      Gam = 7.28*10.0**(-2) !N/m
+      Ion = 2.0
+      Os = 1.093
             
-c         pcount = 0
-
       !Loop over the linked list of particles:
       part => first_particle
       do while (associated(part))     
@@ -10069,11 +10151,6 @@ c         pcount = 0
 	 Shp = 2.0 + 0.6*Rep**(1.0/2.0)*Sc**(1.0/3.0) !Brian 7/18/14
 
 
-
-
-
-
-
 	 !Mass Transfer calculations
          TfC = part%Tf-273.15
 	 einf = 610.94*EXP(17.6257*TfC/(TfC+243.04)) !Brian 7/29/14-3
@@ -10093,59 +10170,27 @@ c         pcount = 0
          Tptmp = Tptmp + dt*zetas(istage)*part%Tprhs_L
 	 radiustmp = part%radius + dt*zetas(istage)*part%radrhs !Brian 7/18/14 
 
-            part%xrhs(1:3) = part%vp(1:3)
-            part%vrhs(1:3) = corrfac*taup_i*(part%uf(1:3)-part%vp(1:3))
+         part%xrhs(1:3) = part%vp(1:3)
+         part%vrhs(1:3) = corrfac*taup_i*(part%uf(1:3)-part%vp(1:3))
      +                                  - g(1:3)
 
-            if (ievap .EQ. 1) then      
+         if (ievap .EQ. 1) then      
             part%radrhs = Shp/9.0/Sc*rhop/rhow*part%radius*
      +                       taup_i*(part%qinf-part%qstar) !Brian 7/18/14: assumes qinf=rhov/rhoa rather than rhov/rhom
-            else
+         else
             part%radrhs = 0.0
-            end if
+         end if
 
 
-            part%Tprhs_s = -Nup/3.0/Pra*CpaCpp*
-     +                        rhop/rhow*taup_i*(part%Tp-part%Tf)
-            part%Tprhs_L = 3.0*Lv/Cpp/part%radius*part%radrhs !rhs at (this) new timestep
+         part%Tprhs_s = -Nup/3.0/Pra*CpaCpp*
+     +                     rhop/rhow*taup_i*(part%Tp-part%Tf)
+         part%Tprhs_L = 3.0*Lv/Cpp/part%radius*part%radrhs !rhs at (this) new timestep
   
-            part%xp(1:3) = xtmp(1:3) + dt*gama(istage)*part%xrhs(1:3)
-            part%vp(1:3) = vtmp(1:3) + dt*gama(istage)*part%vrhs(1:3)
-            part%Tp = Tptmp + dt*gama(istage)*part%Tprhs_s
-            part%Tp = part%Tp + dt*gama(istage)*part%Tprhs_L
-	    part%radius = radiustmp + dt*gama(istage)*part%radrhs !Brian 7/22/14
-
-c          end if
-
-
-c      qq=rhostar/rhoa
-c      if (istage ==3 .and. part%procidx == 0 
-c     +                         .and. part%pidx == 6250 ) then
-c!      if (part%pidx == 1) then !Brian 8/13/14
-c!      write(*,*) 'proc',myid,'writing this'
-c      write(*,'(a7,4e15.6)') 'xp2:  ',time,part%xp(1:3)  !Brian 7/16/14 a4 ->a6
-c      !write(*,'(a7,4e15.6)') 'vp2:  ',time,part%vp(1:3)
-c      write(*,'(a7,4e15.6)') 'Tp2:  ',time,part%Tp
-c      write(*,'(a7,4e15.6)') 'Tf2:  ',time,part%Tf
-c      write(*,'(a7,4e15.6)') 'rad2: ',time,part%radius !Brian 7/9/14
-c      write(*,'(a7,4e15.6)') 'qinf2:',time,part%qinf !Brian 7/14/14
-c      write(*,'(a7,4e15.6)') 'rhs2: ',time,part%radrhs !Brian 7/9/14
-c      write(*,'(a7,4e15.6)') 'qq2:  ',time,qq !Brian 7/9/14
-c      end if
-
-c      if (part%procidx == 0 .and. part%pidx == 6250 ) then
-cc      if (part%pidx == 1) then !Brian 8/13/14
-c!      write(*,*) 'proc',myid,'writing this'
-c      write(*,'(a7,4e15.6)') 'xp3:  ',time,part%xp(1:3)  !Brian 7/16/14 a4 ->a6
-c      !write(*,'(a7,4e15.6)') 'vp3:  ',time,part%vp(1:3)
-c      write(*,'(a7,4e15.6)') 'Tp3:  ',time,part%Tp
-c      write(*,'(a7,4e15.6)') 'Tf3:  ',time,part%Tf
-c      write(*,'(a7,4e15.6)') 'rad3: ',time,part%radius !Brian 7/9/14
-c      write(*,'(a7,4e15.6)') 'qinf3:',time,part%qinf !Brian 7/14/14
-c      write(*,'(a7,4e15.6)') 'rhs3: ',time,part%radrhs !Brian 7/9/14
-c      write(*,'(a7,4e15.6)') 'qq3:  ',time,qq !Brian 7/9/14
-c      end if
-
+         part%xp(1:3) = xtmp(1:3) + dt*gama(istage)*part%xrhs(1:3)
+         part%vp(1:3) = vtmp(1:3) + dt*gama(istage)*part%vrhs(1:3)
+         part%Tp = Tptmp + dt*gama(istage)*part%Tprhs_s
+         part%Tp = part%Tp + dt*gama(istage)*part%Tprhs_L
+         part%radius = radiustmp + dt*gama(istage)*part%radrhs !Brian 7/22/14
 
 
         part => part%next
@@ -11405,6 +11450,7 @@ c      brc_r = 4*(nnz+2)*3*2 !Brian 7/14/14
       !Create the seed for the random number generator:
       call date_and_time(VALUES=values)
       iseed = -(myid+values(8)+values(7)+values(6))
+      iseed = 1080
 
 !      !Initialize particle number residual to 0:
 !      residual(1:rbins) = 0.0
@@ -11415,10 +11461,8 @@ c      brc_r = 4*(nnz+2)*3*2 !Brian 7/14/14
       !For the channel case, set the total number of particles:
       deltaz = zmax-zmin
 
-      tnumpart = 1036730
-      !tnumpart = 2248907
-      !tnumpart = 150016
-      !tnumpart = 66350
+      tnumpart = 10
+
       numpart = tnumpart/numprocs
       if (myid == 0) then
       numpart = numpart + MOD(tnumpart,numprocs)
