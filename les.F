@@ -1,31 +1,39 @@
 c     ----------------------------------------------------------------------
       module pars
 c     ----------------------------------------------------------------------
-      integer :: iti,itmax,imean,ihst,itape
-      integer :: itstr,it_his,it_viz,i_viz
+      integer, parameter :: 
+     +     iti=0000000,itmax=0060000, imean=00100, ihst=010,itape=05000,
+     +     itstr=0000001, it_his=0000001, it_viz=0000001, i_viz=05000   !change u.le if iti >0
+      integer, parameter ::
+     +     noalis=1, ismlt=0, ifree=0, isfc=1, iradup=0,
+     +     iupwnd=0, ibuoy=0, ifilt=0, itcut=1, isubs=0, ibrcl=0,
+     +     iocean=0, method=3, idebug=1, iz_space=1,
+     +     ivis0=0, ifix_dt = 0, new_vis=-1,
+     +     ispray=1,icouple=1,iTcouple=1, 
+     +     iHcouple=1,ievap=1 !iHcouple also controls TEcouple
 
-      integer :: ismlt,ifree,iradup,
-     +     iupwnd,ibuoy,ifilt,itcut,isubs,ibrcl,iocean,method,
-     +     idebug,iz_space,ivis0,ifix_dt,new_vis,iDNS,ispray,
-     +     icouple,iTcouple,iHcouple,ievap
+! Set the scalar boundary condition based on isfc
+c            isfc = 0, specified surface heat flux (through wtsfc)
+c                 = 1, specified surface temperature (tsfcc) 
+
 c     
 c     -------- j_recl = record length in "bytes" for history file
 c     k8     = kind parameter for integers in mpi_io routines
 c     
       integer, parameter :: j_recl=4, k8=8
-
+c     
+c     -------- number of vars, size of problem in (x,y,z), max size, max processors
+c     
       integer, parameter :: nscl = 2, nvar = (4+nscl)
-      integer, parameter :: maxnx=128,maxny=256,maxnz=128
-      integer, parameter :: maxnz1=maxnz+1,
-     + maxnz2=maxnz+2,maxnx2=maxnx+2,maxny2=maxny+2
-
-      !Boundary conditions and other parameters
-      real :: Uo, Ttop(nscl), Tbot(nscl),qstar(nscl),tsfcc(nscl)
-      real :: grav,t00,fcor,zi,zl,xl,yl,zw1
-      integer :: isfc(nscl)
+      integer, parameter :: nxg1  = 128, nyg1  = 256, nzg1  = 128
+      integer, parameter :: maxnx = 128, maxny = 256, maxnz = 128
 c     
 c     ------------ leave following definitions as is
 c     
+      integer, parameter :: maxnz1 = maxnz + 1, 
+     +     maxnz2 = maxnz + 2,
+     +     maxnx2 = maxnx + 2,
+     +     maxny2 = maxny + 2
 c     ----------------------------------------------------------------------
       integer ::    nnx, nny, nnz, nxy, ncx, nnxp1, nnyp1, ncy,
      +     nnxp2, nnyp2, nnzp1, ivis, nnzm1, isize, krec,
@@ -71,7 +79,7 @@ c     ----------------------------------------------------------------------
      +     ucfl, vcfl, wcfl
 c     ----------------------------------------------------------------------
       character*80  path_res, path_sav, path_his, path_prt,
-     +     path_hp, path_sav_hp, path_part, path_ran,
+     +     path_hp, path_sav_hp, path_part,
      +     path_v, path_c, path_p, path_h,
      +     path_sav_v, path_sav_c,
      +     path_sav_p, path_sav_h, path_sav_part,
@@ -120,18 +128,19 @@ c     ----------------------------------------------------------------------
       integer :: particletype,pad_diff
       integer :: numpart,tnumpart,ngidx
       integer :: iseed
+      integer,parameter :: rbins=4
+      real :: residual(rbins)
       real :: Rep_avg,part_grav
-      real :: vp_init(3),Tp_init,qf_init
 
-      real :: radius_init,radius_mass,rhow,nuf 
-      real :: CpaCpp,Cpa,Cpp,Pra,Sc,Mw,Ru,rhoa
-      real :: m_s,Sal,Ms,delta_vis,Gam,Ion,Os
+      real :: radius_init,radius_mass,rhow,nuf  !Brian 7/14/14
+      real :: CpaCpp,Cpa,Cpp,Pra,Sc,Mw,Ru,rhoa !Brian 7/29/14
+      real :: m_s,Sal,Ms,delta_vis !Brian 8/14/14
       
       !REMEMBER: IF ADDING ANYTHING, MUST UPDATE MPI DATATYPE!
       type :: particle
       integer :: pidx,procidx
-      real :: vp(3),xp(3),uf(3),xrhs(3),vrhs(3),Tp,Tprhs_s
-      real :: Tprhs_L,Tf,radius,radrhs,qinf,qstar
+      real :: vp(3),xp(3),uf(3),xrhs(3),vrhs(3),Tp,Tprhs_s !Brian 7/29/14
+      real :: Tprhs_L, Tf,radius,radrhs,qinf,qstar !Brian 7/29/14
       type(particle), pointer :: prev,next
       end type particle
 
@@ -161,28 +170,28 @@ c     ----------------------------------------------------------------------
       type con_d
       sequence
       real ::  zo, vk, vkin, vk74, vk74in, 
-     +     gcp, fcor_h, pi2,
-     +     batagk, batag, vgcont, ugcont, 
+     +     grav, gcp, fcor, fcor_h, zi, pi2,
+     +     batagk, t00, batag, vgcont, ugcont, 
      +     cdbtm, dtdzf(nscl), dtjump, ugal, divgls,
-     +     z1, utausv, dx, dy, dz, dt, 
+     +     z1, utausv, xl, yl, zl, dx, dy, dz, dt, 
      +     fnxy, dzdz, dsl, c23, dtgama, dtzeta, xkmax,
-     +     time, zody, zody74,
-     +     utau, wtsfc(nscl),
+     +     time, zody, zody74, tsfcc(nscl),
+     +     utau, qstar(nscl), wtsfc(nscl),
      +     uwsfc, vwsfc, amonin,
-     +     zol, hol, smal_e, sml_eg
+     +     zol, hol, smal_e, sml_eg, Uo, Ttop(nscl),Tbot(nscl)
       end type con_d
       type(con_d), target :: c_c
       real, pointer ::
      +     zo, vk, vkin, vk74, vk74in, 
-     +     gcp, fcor_h, pi2,
-     +     batagk, batag, vgcont, ugcont,
+     +     grav, gcp, fcor, fcor_h, zi, pi2,
+     +     batagk, t00, batag, vgcont, ugcont,
      +     cdbtm, dtdzf(:), dtjump, ugal, divgls,
-     +     z1, utausv, dx, dy, dz, dt,
+     +     z1, utausv, xl, yl, zl, dx, dy, dz, dt,
      +     fnxy, dzdz, dsl, c23, dtgama, dtzeta, xkmax, 
-     +     time, zody, zody74,
-     +     utau, wtsfc(:), 
+     +     time, zody, zody74, tsfcc(:),
+     +     utau, qstar(:), wtsfc(:), 
      +     uwsfc, vwsfc, amonin,
-     +     zol, hol, smal_e, sml_eg
+     +     zol, hol, smal_e, sml_eg, Uo, Ttop(:),Tbot(:)
       contains
       subroutine fill_cc
 c     
@@ -193,10 +202,14 @@ c
       vkin   => c_c%vkin
       vk74   => c_c%vk74
       vk74in => c_c%vk74in
+      grav   => c_c%grav
       gcp    => c_c%gcp
+      fcor   => c_c%fcor
       fcor_h => c_c%fcor_h
+      zi     => c_c%zi
       pi2    => c_c%pi2
       batagk => c_c%batagk
+      t00    => c_c%t00
       batag  => c_c%batag
       vgcont => c_c%vgcont
       ugcont => c_c%ugcont
@@ -207,6 +220,9 @@ c
       divgls => c_c%divgls
       z1     => c_c%z1
       utausv => c_c%utausv
+      xl     => c_c%xl
+      yl     => c_c%yl
+      zl     => c_c%zl
       dx     => c_c%dx
       dy     => c_c%dy
       dz     => c_c%dz
@@ -221,7 +237,9 @@ c
       time   => c_c%time
       zody   => c_c%zody
       zody74 => c_c%zody74
+      tsfcc  => c_c%tsfcc
       utau   => c_c%utau
+      qstar  => c_c%qstar
       wtsfc  => c_c%wtsfc
       uwsfc  => c_c%uwsfc
       vwsfc  => c_c%vwsfc
@@ -230,6 +248,9 @@ c
       hol    => c_c%hol
       smal_e => c_c%smal_e
       sml_eg => c_c%sml_eg
+      Uo     => c_c%Uo
+      Ttop   => c_c%Ttop
+      Tbot   => c_c%Tbot
       return
       end subroutine fill_cc
       end module con_data
@@ -273,7 +294,7 @@ c ----------------------------------------------------------------------
      +           Tv_diss(maxnz,nscl),
      +           Tv_part1(maxnz,nscl),Tv_part2(maxnz),
      +           radmean(maxnz),rad2mean(maxnz),
-     +           mpmean(maxnz),mwmean(maxnz), 
+     +           mpmean(maxnz),mwmean(maxnz),  !Brian 9/29/14
      +           phimp(maxnz),phimw(maxnz),  
      +           Hpsrc(maxnz),TEpsrc(maxnz),
      +           qstarm(maxnz),
@@ -287,7 +308,7 @@ c ----------------------------------------------------------------------
      +           stokesw,stokesa,
      +           stokess,stokes(maxnz1)
         real ::  dtg, dslg, dzg
-        real ::  phip,phiw,phiv 
+        real ::  phip,phiw,phiv   ! Brian 10/6/14
 
         end type con_s
         type(con_s), target :: c_s
@@ -314,7 +335,7 @@ c ----------------------------------------------------------------------
      +           Tv_tran(:,:),Tv_prod(:,:),Tv_diss(:,:),
      +           Tv_part1(:,:),Tv_part2(:),
      +           radmean(:),rad2mean(:),
-     +           mpmean(:),mwmean(:),
+     +           mpmean(:),mwmean(:), !Brian 9/29/14
      +           phimp(:),phimw(:), 
      +           Hpsrc(:), TEpsrc(:),
      +           qstarm(:),
@@ -329,7 +350,7 @@ c ----------------------------------------------------------------------
         real, pointer ::  
      +           dtg, dslg, dzg
         real, pointer ::  
-     +           phip,phiw,phiv 
+     +           phip,phiw,phiv   ! Brian 10/6/14
       contains
          subroutine fill_cs
 c
@@ -401,10 +422,10 @@ c
              Tv_diss => c_s%Tv_diss  ; isize = isize + size(Tv_diss)
              Tv_part1 => c_s%Tv_part1  ; isize = isize + size(Tv_part1)
              Tv_part2 => c_s%Tv_part2  ; isize = isize + size(Tv_part2)
-             radmean => c_s%radmean  ; isize = isize + size(radmean)
-             rad2mean => c_s%rad2mean  ; isize = isize + size(rad2mean)
-             mpmean => c_s%mpmean    ; isize = isize + size(mpmean)
-             mwmean => c_s%mwmean    ; isize = isize + size(mwmean) 
+             radmean => c_s%radmean  ; isize = isize + size(radmean) !Brian 7/30/14
+             rad2mean => c_s%rad2mean  ; isize = isize + size(rad2mean) !Brian 7/30/14
+             mpmean => c_s%mpmean    ; isize = isize + size(mpmean) !Brian 9/29/14
+             mwmean => c_s%mwmean    ; isize = isize + size(mwmean) !Brian 9/29/14
              phimp => c_s%phimp    ; isize = isize + size(phimp) 
              phimw => c_s%phimw    ; isize = isize + size(phimw)
              Hpsrc   => c_s%Hpsrc    ; isize = isize + size(Hpsrc)
@@ -434,7 +455,7 @@ c
              dtg     => c_s%dtg
              dslg    => c_s%dslg 
              dzg     => c_s%dzg
-             phip    => c_s%phip 
+             phip    => c_s%phip   ! Brian 10/6/14
              phiw    => c_s%phiw 
              phiv    => c_s%phiv
          return
@@ -451,10 +472,6 @@ c
       include 'mpif.h'
 c
 c ------------- definition of internal flags
-c
-c
-c       iDNS    = 0; call the subgrid computation of vis_m and vis_s
-c               = 1; call the molecular viscosity and diffusivity
 c
 c       igrdr   =  3; data comes from restart file
 c               =  2; data comes from initialization (random)
@@ -515,27 +532,27 @@ c
       if(idebug .eq. 1) l_debug = .true.
 c
       ts_mpi = mpi_wtime()
-
-!----- Read the input file for all necessary parameters
-      call read_input_file
-
 c
 c -------- set number of x-y slab cpus
 c
-!      ncpu_s = 8
+      !ncpu_s = 16
+      ncpu_s = 8
 c
+      itn      = 00
       case_inp = 'cou'
 c
       call get_units
       call gridd
       call setcon
+      call set_paths
 c
 c -------------- scratch run
 c
       if (iti.eq.0)  then
          igrdr = 2
          case = case_inp
-         call init
+         call thermal_and_part_prop
+         call init(Cpa,rhoa,Mw,Ru)
          call setup(it)
 
          if (ispray==1) then
@@ -550,19 +567,22 @@ c
          if(iocean .eq. 1) then
             call randoc
          else
-            !call get_fields
-            call random   
+            call get_fields
+c            call random   
+
+
+c
          endif
-         !Call dns_vis even when doing LES since vis_m needs to be initialized with something
          call dns_vis
          call get_max
+!!!!!!!!!!!!Restart Below!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       else
-
          igrdr = 3
          call restart
+         call thermal_and_part_prop
+c         call dns_vis
+c         call get_max
          call setup(it)
-
-         !Call dns_vis even when doing LES since vis_m needs to be initialized with something
          call dns_vis
          call get_max
 
@@ -577,6 +597,7 @@ c
 c
 c --------------- time loop ------------
 c
+      !time = 0.37083609E+02
       tzero = time
       call get_dt
  9000 continue
@@ -590,7 +611,9 @@ c
       part => first_particle
       do while (associated(part))
       if (part%pidx == 1 .and. part%procidx == 0) then
-      write(*,'(a7,4e15.6)') 'xp1:  ',time,part%xp(1:3)
+c      if (part%pidx == 1) then !Brian 8/13/14
+!      write(*,*) 'proc',myid,'writing this'
+      write(*,'(a7,4e15.6)') 'xp1:  ',time,part%xp(1:3)  !Brian 7/16/14 a4 ->a6
       write(*,'(a7,4e15.6)') 'vp1:  ',time,part%vp(1:3)
       write(*,'(a7,4e15.6)') 'uf1:  ',time,part%uf(1:3)
       write(*,'(a7,4e15.6)') 'Tp1:  ',time,part%Tp
@@ -599,16 +622,25 @@ c
       write(*,'(a7,4e15.6)') 'qinf1:',time,part%qinf 
       write(*,'(a7,4e15.6)') 'qstr1:',time,part%qstar 
 
+!      else if (part%pidx == 2) then
+!      write(*,*) 'proc',myid,'writing this'
+!      write(*,'a4,4e15.6') 'xp2:',time,part%xp(1:3)
+!      write(*,'a4,4e15.6') 'vp2:',time,part%vp(1:3)
       end if
 
       part => part%next
-
       if (it == 1) numpart = numpart + 1
       end do
+!      write(*,*) 'proc',myid,'has numpart:',numpart
       if (myid==0) write(*,*) 'time,tnumpart:',time,tnumpart
       end if
 
-
+c
+c --------- specially designed surface cooling routine
+c           for gabls run
+c
+c     call forcing
+c
       if(it .ge. new_vis .and. ivis0 .eq. 1) then
           ivis = 1
       else
@@ -633,28 +665,19 @@ c
 
       call get_derv
 
+
 c
 c --------- new eddy viscosity, and bcs
 c
       if(iss .eq. 0 .and. ifree .eq. 0) then
-         if (iDNS .eq. 1) then
-            call lower_dns(it)
-         else
-            call lower(it)
-         end if
+         !call lower(it)
+         call lower_dns(it)
       elseif(ifree .eq. 1) then
-         if (iDNS .eq. 1) then
-            call lower_dns(it)
-         else
-            call lower_free(it)
-         end if
+         call lower_free(it)
       endif
       if(ise .eq. numprocs-1) then
-         if (iDNS .eq. 1) then
-            call upper_dns
-         else
-            call upper
-         end if
+         !call upper
+         call upper_dns
       endif
       call bcast_pbc
       call get_means(istage)
@@ -806,7 +829,9 @@ c
            v_xy = amax1(v_xy,abs(v(ix,iy,iz)))
            w_xy = amax1(w_xy,abs(w(ix,iy,iz)))
            vis_xym = amax1(vis_xym,vis_m(ix,iy,iz))
-           vis_xys = amax1(vis_xys,vis_s(ix,iy,1,iz))
+        do iscl=1,nscl !6/4/14
+           vis_xys = amax1(vis_xys,vis_s(ix,iy,iscl,iz))
+        enddo !6/4/14
            vis_xy = amax1(vis_xys,vis_xym)
         enddo
         enddo
@@ -1072,7 +1097,38 @@ c
       return
 c
       end
+      subroutine set_paths
+c
+c ------------- set file path for RESTART, and
+c               directories for saving, history, and viz files
+c
+c     path_res  --- the path and file name of the velocity restart file
+c     path_sav  --- the path where the new 3d volumes are to be saved
+c     path_his  --- the path where the new history files are to be saved
+c     path_viz  --- the path where xy, xz, or yz planes of data will be stored
+c     path_stuf --- the path where fun facts about the viz planes of 
+c                   data will be stored
+c     path_seed --- seed name
+c
+      use pars
+c
+c
+      !REPLACE XXXXXXXX WITH YOUR DATA DIRECTORY
+      !Example: path_part = '/pscratch/drichte2/tutorial/part.le.cou000'
+      path_seed   = 'XXXXXXXX'
+      path_part   = 'XXXXXXXX/part.le.cou000'
+      path_res    = 'XXXXXXXX/u.le.cou000'
+      path_sav    = 'XXXXXXXX'
+      path_his    = 'XXXXXXXX'
+      path_viz_xy = 'XXXXXXXX'
+      path_viz_xz = 'XXXXXXXX'
+      path_viz_yz = 'XXXXXXXX'
+      path_stuf   = 'XXXXXXXX'
 
+c
+
+      return
+      end
       subroutine setup(it)
 c
       use pars
@@ -1110,13 +1166,13 @@ c
 c     if(ifilt.eq.1)call filter
       if(l_root) then
          write(6,1) nnx,nny,nnz,ismlt,ifilt,iti,itmax,
-     +             iupwnd,ibuoy,itcut,
+     +             iupwnd,ibuoy,noalis,itcut,
      +             dt,zo,tsfcc(1),isubs,ibrcl,
      +             method, iocean, ivis
       endif
       if(l_debug) then
          write(nprt,1) nnx,nny,nnz,ismlt,ifilt,iti,itmax,
-     +             iupwnd,ibuoy,itcut,
+     +             iupwnd,ibuoy,noalis,itcut,
      +             dt,zo,tsfcc(1),isubs,ibrcl,
      +             method, iocean, ivis
       endif
@@ -1616,22 +1672,16 @@ c
 c --------- get viscosity and rhs of (e,u,v,w)-equations
 c           at next step
 c
-      if (iDNS .eq. 1) then
-         call dns_vis
-         call rhs_uvw_DNS(istep)
-      else
-         call tke_vis(istep)   ! WARNING: this has not been checked for iscl=2
-         call rhs_uvw(istep)   ! WARNING: this has not been checked for iscl=2
-      end if
+!      call tke_vis(istep)   ! WARNING: this has not been checked for iscl=2
+!      call rhs_uvw(istep)   ! WARNING: this has not been checked for iscl=2
+      call dns_vis
+      call rhs_uvw_DNS(istep)
 c
 c -------- evaluate rhs of scalar equations
 c
       do l=1,nscl
-         if (iDNS .eq. 1) then
-            call rhs_scl_dns(istep,l,it) 
-         else
-            call rhs_scl(istep,l,it) 
-         end if
+         !call rhs_scl(istep,l,it) 
+         call rhs_scl_dns(istep,l,it) 
       enddo
 c
 c ---------- gather stat sums on root processor
@@ -1783,17 +1833,8 @@ c
 c
 c ------------ buoyancy (with hydrostatic part)
 c
-
-!MODIFY BUOYANCY TERM TO INCLUDE HUMIDITY
-!         w_buy = batag*(t(ix,iy,1,iz)*weit1 +
-!     +                  t(ix,iy,1,izp1)*weit)
-
          w_buy = batag*(t(ix,iy,1,iz)*weit1 +
-     +                  t(ix,iy,1,izp1)*weit)*
-     +   (1.0+0.61*(weit1*t(ix,iy,2,iz) + 
-     +    weit*t(ix,iy,2,izp1)))
-
-
+     +                  t(ix,iy,1,izp1)*weit)
 c
 c ------------ geostrophic wind
 c
@@ -2611,7 +2652,7 @@ c
          do ix=1,nnx
             taut3_l(ix,iy,iscl) = -vis_s(ix,iy,iscl,izm1)*
      +              (t(ix,iy,iscl,iz) - t(ix,iy,iscl,izm1))*dzu_i(iz)
-         if (iz == 1) then 
+         if (iz == 1) then  !Brian 10/22/14
              sfc_flx = sfc_flx + taut3_l(ix,iy,iscl)
          end if
          enddo
@@ -2619,7 +2660,7 @@ c
 
 
 !      Aside - get each wtsfc value:
-       if (iz == 1 .and. isfc(iscl) == 1) then
+       if (iz == 1 .and. isfc == 1) then   !Brian 10/22/14
           call mpi_sum_xy(sfc_flx,myid,iss,ise,1)
           wtsfc(iscl) = sfc_flx*fnxy 
        end if
@@ -2807,7 +2848,7 @@ c
       enddo
 
 !---------add on the thermal coupling from the particles:
-      if (iscl == 1) then 
+      if (iscl == 1) then  !6/2/14 Brian
       if (iTcouple == 1) then
       do iz=izs,ize
          do iy=iys,iye
@@ -2817,9 +2858,9 @@ c
          end do
       end do
       end if
-      end if  
+      end if   !6/2/14 Brian
 
-      if (iscl == 2) then 
+      if (iscl == 2) then  !8/5/14 Brian
       if (iHcouple == 1) then
       do iz=izs,ize
          do iy=iys,iye
@@ -2830,7 +2871,7 @@ c
          end do
       end do
       end if
-      end if 
+      end if  !8/5/14 Brian
 
 
 
@@ -2878,11 +2919,17 @@ c
 !     Also, to make the rest of code work, set the rhs of e equation to 0
 
       !Both for air at the moment:
-      vis_m = nuf 
-
+      !vis_m(1:nnx,iys:iye,izs-1:ize+1) = nuf  
+       vis_m = nuf 
       !Use Prantdl number for thermal diffusivity:
       vis_s(1:nnx,iys:iye,1,izs-1:ize+1) = nuf/Pra   ! alpha=nu/Prandtl   
-!      vis_s(1:nnx,iys:iye,2,izs-1:ize+1) = nuf/Sc    !Dv =nu/Sc
+      vis_s(1:nnx,iys:iye,2,izs-1:ize+1) = nuf/Sc  !Brian 7/29/14-3   !Dv =nu/Sc
+
+
+
+
+
+
       r5 = 0.0
       e = 0.0
 
@@ -2929,6 +2976,10 @@ c
          do j=iys,iye
          do i=1,nnx
             alk(i,j,iz) = dslk
+c     CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+c     CCCCCCCCNot In iscl loop?CCCCCCCCCCCCCC
+c     CCCCCCCCCCCNot Currently CalledCCCCCCCC
+c     CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
             stab = batag*(t(i,j,1,izp1) - t(i,j,1,iz))*dzu_i(izp1)
             if(stab.gt.stabmin) then
               als = stab_c*sqrt(e(i,j,iz)/stab)
@@ -2937,23 +2988,30 @@ c
             alk(i,j,iz)  = amax1(almin,alk(i,j,iz))
          enddo
          enddo
+c     CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
       endif
+      do iscl=1,nscl !added 6/4/14
       do j=iys,iye
       do i=1,nnx
          vis_m(i,j,iz) = ck*alk(i,j,iz)*sqrt(e(i,j,iz))*dfack
-         vis_s(i,j,1:nscl,iz) = (1.+2.*alk(i,j,iz)/dslk)*vis_m(i,j,iz) 
+         vis_s(i,j,iscl,iz) = (1.+2.*alk(i,j,iz)/dslk)*vis_m(i,j,iz) 
+	!6/4/14 may not work
       enddo
       enddo
+      enddo ! added 6/4/14
 c
 c -------------- special case for iz = 1
 c
       if(iz.eq.1 .and. ibcl .eq. 0) then
+	 do iscl=1,nscl !added 6/4/14
          do iy=iys,iye
          do ix=1,nnx
             vis_m(ix,iy,iz-1) = vis_m(ix,iy,iz)
-            vis_s(ix,iy,1:nscl,iz-1) = vis_s(ix,iy,1:nscl,iz)
+            vis_s(ix,iy,iscl,iz-1) = vis_s(ix,iy,iscl,iz)
+         !6/4/14 may not work 
          enddo
          enddo
+         enddo !added 6/4/14
       endif
 c
 c -------------- end z loop
@@ -3344,17 +3402,17 @@ c
 
 !NOTE: sign convention is that wtsfc is flux upwards INTO domain (not just in vertical direction)
 ! Set the scalar boundary condition based on isfc
-c            isfc = 0, specified surface heat flux (through qstar)
-c                 = 1, specified surface temperature (Tbot)
+c            isfc = 0, specified surface heat flux (through wtsfc)
+c                 = 1, specified surface temperature (tsfcc)
 
       do iscl=1,nscl
          do iy=iys,iye
          do ix=1,nnx
-            if (isfc(iscl)==1) then
+            if (isfc==1) then
             t(ix,iy,iscl,izm1) = 2.0*Tbot(iscl) - t(ix,iy,iscl,iz) 
             end if
 
-            if (isfc(iscl)==0) then 
+            if (isfc==0) then 
             flux = dzu(0)*wtsfc(iscl)/vis_s(ix,iy,iscl,izm1)
             t(ix,iy,iscl,izm1) = t(ix,iy,iscl,iz)     
      +       + flux  
@@ -3402,18 +3460,18 @@ c
       enddo
 
 ! Set the scalar boundary condition based on isfc
-c            isfc = 0, specified surface heat flux (through qstar)
-c                 = 1, specified surface temperature (Ttop)
+c            isfc = 0, specified surface heat flux (through wtsfc)
+c                 = 1, specified surface temperature (tsfcc)
 
 !NOTE: sign convention is that wtsfc is flux upwards INTO domain (not just in vertical direction)
 
       do iscl=1,nscl
          do iy=iys,iye
          do ix=1,nnx
-            if (isfc(iscl)==1) then
+            if (isfc==1) then
             t(ix,iy,iscl,izp1) = 2.0*Ttop(iscl)-t(ix,iy,iscl,iz) 
             end if
-            if (isfc(iscl)==0) then 
+            if (isfc==0) then 
             flux = dzu(izp1)*wtsfc(iscl)/vis_s(ix,iy,iscl,izp1)
             t(ix,iy,iscl,izp1) = t(ix,iy,iscl,iz)      
      +       - flux 
@@ -4376,7 +4434,7 @@ c
       iz_ee = ize
       iz_ss = izs
       if(ize .eq. nnz) iz_ee = nnzp1
-      if(izs .eq. 1)   iz_ss = 0 
+      if(izs .eq. 1)   iz_ss = 0  !Brian 10/9/14
       do iz=iz_ss,iz_ee
          do iy=iys,iye
          do ix=1,nnx
@@ -4971,7 +5029,7 @@ c ---------- limits for zeta
 c
       zeta_mn = zeta_min
       zeta_mx = zeta_max
-      if(isfc(1) .eq. 0) then
+      if(isfc .eq. 0) then
          f_con = z1*batag*vk*qstar(1)/((windm*vk)**3)
       else
          d_theta = vk74in*(tsfcc(1) - t1xy(1))
@@ -4988,7 +5046,7 @@ c
              call fzol(zeta_a,phim,phis,psim,psis)
          endif
          u_fac = (zody - psim)
-         if(isfc(1) .eq. 0) then
+         if(isfc .eq. 0) then
             f_new =  zeta_a + f_con*u_fac**3
          else
             t_fac = 1.0/(zody - psis)
@@ -5020,7 +5078,7 @@ c
       else
          utau = windm*vk/(zody-psim)
          dnom = (zody-psis)*vk74in
-         if(isfc(1) .eq. 0) then
+         if(isfc .eq. 0) then
             thstar(1) = -qstar(1)/utau
             tsfcc(1)  = t1xy(1)-thstar(1)*dnom
             t10xy(1)  = thstar(1)*dnom
@@ -5054,32 +5112,6 @@ c
      +                 tsfcc(1),amonin,utau,it
          go to 9999
       endif
-
-!Now that temperature and momentum have been done, apply BCs on remaining scalars:
-
-      do iscl=2,nscl
-
-      if (ibuoy.eq.0 .or. qstar(1) .eq. 0.) then
-          thstar(iscl) = 0.0
-          t10xy(iscl)  = 0.0
-          tsfcc(iscl)  = t1xy(iscl)
-      else
-         dnom = (zody-psis)*vk74in
-         if(isfc(iscl) .eq. 0) then
-            thstar(iscl) = -qstar(iscl)/utau
-            tsfcc(iscl)  = t1xy(iscl)-thstar(iscl)*dnom
-            t10xy(iscl)  = thstar(iscl)*dnom
-         else
-            thstar(iscl) = (t1xy(iscl) - tsfcc(iscl))/dnom
-            t10xy(iscl)  = thstar(iscl)*dnom
-            qstar(iscl)  = -utau*thstar(iscl)
-         endif
-         amonin = -utau**3/(batagk*qstar(iscl))
-         zeta   = z1/amonin
-      endif
-
-      enddo
-
 c ---------- examples of two other scalars
 c
 c     c
@@ -5111,9 +5143,7 @@ c
       utau2     = utau*utau
       au13m     = -utau2*cos(thta)
       au23m     = -utau2*sin(thta)*sign(1.,v1xy)
-      do iscl = 1,nscl
-      aut3m(iscl)  =  qstar(iscl)
-      end do
+      aut3m(1)  =  qstar(1)
 c
       return
 c
@@ -5181,7 +5211,7 @@ c
 c
 c ---- check for temperature boundary condition
 c
-      if(isfc(iscl) .eq. 0 ) then
+      if(isfc .eq. 0 ) then
          tsfcc(1)=t1xy(1)-t10xy(1)
       endif
 c     vsfc=sqrt(u1xy*u1xy+v1xy*v1xy)
@@ -5224,7 +5254,7 @@ c
       udrift = windm + stokes(1) - stokess + utau*(zody-psim)*vkin
       vdrift = 0.0
       dnom      = (zody-psis)*vk74in
-      if (isfc(iscl).eq.1) then
+      if (isfc.eq.1) then
          thstar(1) = (t1xy(1) - tsfcc(1))/dnom
          t10xy(1)  = thstar(1)*dnom
          qstar(1)  = - utau*thstar(1)
@@ -5404,18 +5434,19 @@ c
 c
       return
       end
-      subroutine init
+      subroutine init(Cpa,rhoa,Mw,Ru)
 c
       use pars
       use fields
       use con_data
       use con_stats
-      use particles
 c
+      real :: Cpa,rhoa,Mw,Ru
       real :: RHT,RHB
 
       pi   = 4.0*atan(1.0)
       pi2  = 2.0*pi
+      grav = 9.81
       bfac = 1.0
       if(ibuoy.eq.0) bfac = 0.
 c
@@ -5453,65 +5484,68 @@ c ---------- if stretched grid specify location of first point
 c
          zw1 = -0.5
       else
-         gcp     = grav/Cpa
+         t00     = 273.0
+         cp      = 1.e3
+         gcp     = grav/cp
          batag   = bfac*grav/t00
+         !fcor    = 1.0e-04
+         fcor    = 0.0
          fcor_h  = 0.0
 
-         !!!If doing DNS, BCs are set somewhat differently than when doing LES
-         if (iDNS .eq. 1) then
-
-         !Get BCs of temperature in Celsius for use in specific expressions
-         topC=(Ttop(1)-273.15)
+         Uo = 1.59
+         Ttop(1) = 300.15  !http://www.nasa.gov/centers/goddard/images/content/148071main_Katrina_SSHeights.jpg 
+         Tbot(1) = 300.15
+c
+	 topC=(Ttop(1)-273.15)
          botC=(Tbot(1)-273.15)  
          
-         !Normalize the RH given in input file
-         RHT = Ttop(2)/100.0 
-         RHB = Tbot(2)/100.0
-
-         !Convert RH given in input file into specific humidity
+         RHT = 95.0/100.0
+         RHB = 100.0/100.0         
          Ttop(2) =  RHT*Mw/Ru/Ttop(1)*610.94*
      +               EXP(17.6257*topC/(topC+243.04))/rhoa
          Tbot(2) =  RHB*Mw/Ru/Tbot(1)*610.94*
      +               EXP(17.6257*botC/(botC+243.04))/rhoa
 
-         wtsfc(1) = qstar(1)
-         wtsfc(2) = qstar(2)
-
-         else !(doing LES)
 c
-         !qstar specified in input file for isfc = 0
-        
-         wtsfc = qstar
-
-         !tsfcc specified in input file for isfc = 1
-
-         !Assuming tsfcc(2) is giving RH:
-
-         botC=(tsfcc(1)-273.15)  
-         RHB = tsfcc(2)/100.0
-
-         tsfcc(2) =  RHB*Mw/Ru/tsfcc(1)*610.94*
-     +               EXP(17.6257*botC/(botC+243.04))/rhoa
-
-
-         end if
+c        wtsfc is defined in upward direction
+         wtsfc(1) = 0.0 !-32.0/Cpa/rhoa  !Not Advective Flux in DNS
+         wtsfc(2) = 0.0
 c
+         qstar(1)=wtsfc(1)
+         qstar(2)=wtsfc(2)
 c
-         !Gradients of temperature and scalars above inversion (upper BC)
          dtdzf(1)=0.003
-         dtdzf(2)=0.000
+         dtdzf(2)=0.003
 c
          dtjump  = 0.0
          divgls  = 0.0
          zo      = 0.1
-         ugcont  = 10.0 
+         ugcont  = 0.01 
          vgcont  = 0.0
+!         zi      = 1000.0
+!         xl      = 5120.0
+!         yl      = 5120.0
+!         zl      = 2048.0
+         
+         !zi = 12.0
+         !xl = 12.0
+         !yl = 12.0
+         !zl = 12.0
 
+         !Particle channel:
+         zi = 0.04
+         xl      = pi2*0.04
+         !yl      = pi2*0.02
+         yl      = pi2*0.04
+         zl      = 0.04
   
 c
 c ---------- if stretched grid specify location of first point
 c
          !Particle channel:
+         zw1     = 0.00013333   !dz+(min) = 1
+         !zw1     = 0.000013333    !dz+(min) = 0.1
+c        izi     = int(float(nnz)*zi/zl)
          izi     = (60*nnz)/100
       endif
 c
@@ -5615,6 +5649,11 @@ c        utau  = vk*(ufree)/zody
       zol   = abs(z1)/amonin
       uwsfc = -utau*utau
       vwsfc = -utau*utau
+c ------- make sure tsfcc is gt than t00 for both isfc=0 or 1
+c     tsfcc(1) = t00+qstar(1)/utau*zody*vk74in
+c      tsfcc(1) = 300    !Brian 6/3/14
+      tsfcc(1) = (Ttop(1)+Tbot(1))/2.0 !Brian 6/3/14
+      tsfcc(2) = (Ttop(2)+Tbot(2))/2.0 !Brian 6/3/14
 c
       if(l_root) then
          write(6,80)
@@ -5927,36 +5966,40 @@ c           u(ix,iy,iz) = ug(iz) - ugal
          if(z(iz) .le. z_lower) then
            do iy=iys,iye
            do ix=1,nnx
-              t(ix,iy,1,iz) = t_lower
+              !t(ix,iy,1,iz) = t_lower
               !t(ix,iy,1,iz) = tsfcc(1) - 5.0 !Brian 5/28/14
+              t(ix,iy,1,iz) = tsfcc(1) !Brian 5/28/14
+              t(ix,iy,2,iz) = tsfcc(2) !Brian 5/28/14 nscl2 field initialize
 
            enddo
            enddo
          elseif(z(iz) .ge. z_upper) then
            do iy=iys,iye
            do ix=1,nnx
-              t(ix,iy,1,iz) = t_upper + (zz(iz+1) - z_upper)*dtdzf(1)
-              !t(ix,iy,1,iz) = tsfcc(1) - 5.0
+              !t(ix,iy,1,iz) = t_upper + (zz(iz+1) - z_upper)*dtdzf(1)
+              !t(ix,iy,1,iz) = tsfcc(1) - 5.0 !Brian 5/28/14
+              t(ix,iy,1,iz) = tsfcc(1) !Brian 5/28/14
+              t(ix,iy,2,iz) = tsfcc(2) !Brian 5/28/14 nscl2 field initialize
            enddo
            enddo
          else
            do iy=iys,iye
            do ix=1,nnx
-              t(ix,iy,1,iz) = t_lower + slope*(zz(iz+1) - z_lower)
-              !t(ix,iy,1,iz) = tsfcc(1) - 5.0 
+              !t(ix,iy,1,iz) = t_lower + slope*(zz(iz+1) - z_lower)
+              !t(ix,iy,1,iz) = tsfcc(1) - 5.0 !Brian 5/28/14
+              t(ix,iy,1,iz) = tsfcc(1) !Brian 5/28/14
+              t(ix,iy,2,iz) = tsfcc(2) !Brian 5/28/14 nscl2 field initialize
            enddo
            enddo
          endif
          do iy=iys,iye
          do ix=1,nnx
-            t(ix,iy,1,iz) = t_lower
-            t(ix,iy,2,iz) = 0.  !For now just set the initial humidity field to zero
             w(ix,iy,iz)   = 0.
             r1(ix,iy,iz)  = 0.
             r2(ix,iy,iz)  = 0.
             r3(ix,iy,iz)  = 0.
             r4(ix,iy,1,iz)= 0.
-            !r4(ix,iy,2,iz)= 0.
+            r4(ix,iy,2,iz)= 0.
             r5(ix,iy,iz)  = 0.
          enddo 
          enddo 
@@ -6532,13 +6575,14 @@ c
       integer(kind=mpi_offset_kind) :: offset, disp
       integer(kind=k8)              :: nsize, nsize2
       real, allocatable, dimension(:,:,:) :: temp
+      character*80 path_ran
       logical there
 c
       allocate(temp(nvar,nnx,iys:iye))
 c
 c ---------- input file to read from
 c
-!      path_ran = 'XXXXXXXXX/u.le.cou000'
+      path_ran = 'XXXXXXXXX/u.le.cou000'
 c
 c --------------------- get restart file from local directory
 c                       reuse unit number
@@ -7243,10 +7287,6 @@ c
       return
       end
       subroutine tke_budget
-
-!NOTE::: THIS HAS NOT BEEN UPDATED TO REFLECT HUMIDITY IN THE BUOYANCY
-!EQUATION   DHR 7/5/16
-
 c
 c -------- get terms in resolved scale tke budget
 c          as in gabls writeup at w-points
@@ -7931,11 +7971,9 @@ c               and data structures
 c
       call fill_cc
       call fill_cs
-
-      if (myid==0) write(6,5001) isize
- 5001 format(' size of stats array = ',i8)
-
 c
+      write(6,5001) isize
+ 5001 format(' size of stats array = ',i8)
 c
 c ---------------- debug for arrays
 c
@@ -7943,9 +7981,9 @@ c
 c
 c ---------------- setup grid
 c
-      nnx = maxnx
-      nny = maxny
-      nnz = maxnz
+      nnx = nxg1
+      nny = nyg1
+      nnz = nzg1
 c     izs = 1
 c     ize = nnz
 c
@@ -9945,14 +9983,15 @@ c
 
       integer :: istage,ierr,it
       real :: g(3)
+      !real :: g(3) = (/0.0, 0.0, 0.0/)
       real :: denom,dtl,sigma,ttest
       integer :: ix,iy,iz
       real :: Rep,diff(3),diffnorm,corrfac,myRep_avg
       real :: xtmp(3),vtmp(3),Tptmp,radiustmp
-      real :: Nup,Shp,rhop,taup_i,estar,einf
+      real :: Nup,Shp,rhop,taup_i,estar,einf !Brian 7/29/14-3
       real :: myphip_sum,myphiw_sum,myphiv_sum,Volp      
-      real :: TfC,TpC,Lv,Eff_C,Eff_S
-      real :: t_s,t_f,t_s1,t_f1
+      real :: TfC,TpC,Lv,Eff_C,Eff_S,Gam,Ion,Os
+      real :: t_s,t_f,t_s1,t_f1!,qq
 
       g(1:3) = (/0.0, 0.0, part_grav/)
 
@@ -9972,8 +10011,8 @@ c
       qfsum_t = 0.0
       radsum_t = 0.0  
       rad2sum_t = 0.0  
-      mpsum_t = 0.0
-      mwsum_t = 0.0
+      mpsum_t = 0.0  !Brian 9/29/14
+      mwsum_t = 0.0  !Brian 9/29/14
       Tpsqrsum_t = 0.0
       wpTpsum_t = 0.0
       myRep_avg = 0.0
@@ -9984,6 +10023,13 @@ c
 
       !t_s = mpi_wtime()
 
+
+         !Temporarily Here? Not actually constant?
+         Gam = 7.28*10.0**(-2) !N/m
+         Ion = 2.0
+         Os = 1.093
+            
+c         pcount = 0
 
       !Loop over the linked list of particles:
       part => first_particle
@@ -10007,7 +10053,8 @@ c
          Rep = 2.0*part%radius*diffnorm/nuf  
          Volp = pi2*2.0/3.0*part%radius**3
          rhop = (m_s+Volp*rhow)/Volp
-         taup_i = 18.0*rhoa*nuf/rhop/(2.0*part%radius)**2 
+         taup_i = 18.0*rhoa*nuf/rhop/(2.0*part%radius)**2 !Brian 8/4/14
+         !/Intermediate Values 
 
          myRep_avg = myRep_avg + Rep
          corrfac = (1.0 + 0.15*Rep**(0.687))
@@ -10019,49 +10066,86 @@ c
          !Compute Nusselt number for particle:
          !Ranz-Marshall relation
          Nup = 2.0 + 0.6*Rep**(1.0/2.0)*Pra**(1.0/3.0)
-         Shp = 2.0 + 0.6*Rep**(1.0/2.0)*Sc**(1.0/3.0)
+	 Shp = 2.0 + 0.6*Rep**(1.0/2.0)*Sc**(1.0/3.0) !Brian 7/18/14
 
 
-         !Mass Transfer calculations
+
+
+
+
+
+	 !Mass Transfer calculations
          TfC = part%Tf-273.15
-         einf = 610.94*EXP(17.6257*TfC/(TfC+243.04))
+	 einf = 610.94*EXP(17.6257*TfC/(TfC+243.04)) !Brian 7/29/14-3
          TpC = part%Tp-273.15
-         Lv =(25.0 - 0.02274*26.0)*10.0**5
+         Lv =(25.0 - 0.02274*26.0)*10.0**5  !search 0.02274 http://www.lnu.edu.ua/faculty/geology/phis_geo/fourman/library-Earth/An%20Introduction%20to%20Atmospheric%20Physics.pdf
 
          Eff_C = 2.0*Mw*Gam/(Ru*rhow*part%radius*part%Tp)
          Eff_S = Ion*Os*m_s*Mw/Ms/(Volp*rhop-m_s)
          estar = einf*exp(Mw*Lv/Ru*(1.0/part%Tf-1.0/part%Tp)
-     +                                           +Eff_C-Eff_S)
-         part%qstar = Mw/Ru*estar/part%Tp/rhoa
+     +                                           +Eff_C-Eff_S) !Brian 8/14/14-3
+	 part%qstar = Mw/Ru*estar/part%Tp/rhoa
 
   
          xtmp(1:3) = part%xp(1:3) + dt*zetas(istage)*part%xrhs(1:3)
          vtmp(1:3) = part%vp(1:3) + dt*zetas(istage)*part%vrhs(1:3) 
          Tptmp = part%Tp + dt*zetas(istage)*part%Tprhs_s
          Tptmp = Tptmp + dt*zetas(istage)*part%Tprhs_L
-         radiustmp = part%radius + dt*zetas(istage)*part%radrhs
+	 radiustmp = part%radius + dt*zetas(istage)*part%radrhs !Brian 7/18/14 
 
-         part%xrhs(1:3) = part%vp(1:3)
-         part%vrhs(1:3) = corrfac*taup_i*(part%uf(1:3)-part%vp(1:3))
-     +                               - g(1:3)
+            part%xrhs(1:3) = part%vp(1:3)
+            part%vrhs(1:3) = corrfac*taup_i*(part%uf(1:3)-part%vp(1:3))
+     +                                  - g(1:3)
 
-         if (ievap .EQ. 1) then      
+            if (ievap .EQ. 1) then      
             part%radrhs = Shp/9.0/Sc*rhop/rhow*part%radius*
-     +                       taup_i*(part%qinf-part%qstar) !assumes qinf=rhov/rhoa rather than rhov/rhom
-         else
+     +                       taup_i*(part%qinf-part%qstar) !Brian 7/18/14: assumes qinf=rhov/rhoa rather than rhov/rhom
+            else
             part%radrhs = 0.0
-         end if
+            end if
 
 
-         part%Tprhs_s = -Nup/3.0/Pra*CpaCpp*
-     +                     rhop/rhow*taup_i*(part%Tp-part%Tf)
-         part%Tprhs_L = 3.0*Lv/Cpp/part%radius*part%radrhs
+            part%Tprhs_s = -Nup/3.0/Pra*CpaCpp*
+     +                        rhop/rhow*taup_i*(part%Tp-part%Tf)
+            part%Tprhs_L = 3.0*Lv/Cpp/part%radius*part%radrhs !rhs at (this) new timestep
   
-         part%xp(1:3) = xtmp(1:3) + dt*gama(istage)*part%xrhs(1:3)
-         part%vp(1:3) = vtmp(1:3) + dt*gama(istage)*part%vrhs(1:3)
-         part%Tp = Tptmp + dt*gama(istage)*part%Tprhs_s
-         part%Tp = part%Tp + dt*gama(istage)*part%Tprhs_L
-         part%radius = radiustmp + dt*gama(istage)*part%radrhs
+            part%xp(1:3) = xtmp(1:3) + dt*gama(istage)*part%xrhs(1:3)
+            part%vp(1:3) = vtmp(1:3) + dt*gama(istage)*part%vrhs(1:3)
+            part%Tp = Tptmp + dt*gama(istage)*part%Tprhs_s
+            part%Tp = part%Tp + dt*gama(istage)*part%Tprhs_L
+	    part%radius = radiustmp + dt*gama(istage)*part%radrhs !Brian 7/22/14
+
+c          end if
+
+
+c      qq=rhostar/rhoa
+c      if (istage ==3 .and. part%procidx == 0 
+c     +                         .and. part%pidx == 6250 ) then
+c!      if (part%pidx == 1) then !Brian 8/13/14
+c!      write(*,*) 'proc',myid,'writing this'
+c      write(*,'(a7,4e15.6)') 'xp2:  ',time,part%xp(1:3)  !Brian 7/16/14 a4 ->a6
+c      !write(*,'(a7,4e15.6)') 'vp2:  ',time,part%vp(1:3)
+c      write(*,'(a7,4e15.6)') 'Tp2:  ',time,part%Tp
+c      write(*,'(a7,4e15.6)') 'Tf2:  ',time,part%Tf
+c      write(*,'(a7,4e15.6)') 'rad2: ',time,part%radius !Brian 7/9/14
+c      write(*,'(a7,4e15.6)') 'qinf2:',time,part%qinf !Brian 7/14/14
+c      write(*,'(a7,4e15.6)') 'rhs2: ',time,part%radrhs !Brian 7/9/14
+c      write(*,'(a7,4e15.6)') 'qq2:  ',time,qq !Brian 7/9/14
+c      end if
+
+c      if (part%procidx == 0 .and. part%pidx == 6250 ) then
+cc      if (part%pidx == 1) then !Brian 8/13/14
+c!      write(*,*) 'proc',myid,'writing this'
+c      write(*,'(a7,4e15.6)') 'xp3:  ',time,part%xp(1:3)  !Brian 7/16/14 a4 ->a6
+c      !write(*,'(a7,4e15.6)') 'vp3:  ',time,part%vp(1:3)
+c      write(*,'(a7,4e15.6)') 'Tp3:  ',time,part%Tp
+c      write(*,'(a7,4e15.6)') 'Tf3:  ',time,part%Tf
+c      write(*,'(a7,4e15.6)') 'rad3: ',time,part%radius !Brian 7/9/14
+c      write(*,'(a7,4e15.6)') 'qinf3:',time,part%qinf !Brian 7/14/14
+c      write(*,'(a7,4e15.6)') 'rhs3: ',time,part%radrhs !Brian 7/9/14
+c      write(*,'(a7,4e15.6)') 'qq3:  ',time,qq !Brian 7/9/14
+c      end if
+
 
 
         part => part%next
@@ -10210,12 +10294,12 @@ c
       call ztox_trans(mpsum_t(0:nnz+1,iys:iye,mxs:mxe),
      +                mpsum(1:nnx,iys:iye,izs-1:ize+1),nnx,nnz,mxs,
      +                mxe,mx_s,mx_e,iys,iye,izs,ize,iz_s,iz_e,myid,
-     +                ncpu_s,numprocs)
+     +                ncpu_s,numprocs) !Brian 9/29/14
 
       call ztox_trans(mwsum_t(0:nnz+1,iys:iye,mxs:mxe),
      +                mwsum(1:nnx,iys:iye,izs-1:ize+1),nnx,nnz,mxs,
      +                mxe,mx_s,mx_e,iys,iye,izs,ize,iz_s,iz_e,myid,
-     +                ncpu_s,numprocs)
+     +                ncpu_s,numprocs) !Brian 9/29/14
 
       call ztox_trans(qstarsum_t(0:nnz+1,iys:iye,mxs:mxe),
      +                qstarsum(1:nnx,iys:iye,izs-1:ize+1),nnx,nnz,mxs,
@@ -10314,7 +10398,7 @@ c
       end function dFdr_uniform
       subroutine particle_bcs_nonperiodic
       use particles
-      use pars
+      use con_data
       implicit none
       real :: top,bot
 
@@ -10348,7 +10432,7 @@ c
       end subroutine particle_bcs_nonperiodic
       subroutine particle_bcs_periodic
       use particles
-      use pars
+      use con_data
       implicit none 
 
       !Assumes domain goes from [0,xl),[0,yl),[0,zl] 
@@ -11322,12 +11406,19 @@ c      brc_r = 4*(nnz+2)*3*2 !Brian 7/14/14
       call date_and_time(VALUES=values)
       iseed = -(myid+values(8)+values(7)+values(6))
 
+!      !Initialize particle number residual to 0:
+!      residual(1:rbins) = 0.0
+
       !Initialize ngidx, the particle global index
       ngidx = 1
   
       !For the channel case, set the total number of particles:
       deltaz = zmax-zmin
 
+      tnumpart = 1036730
+      !tnumpart = 2248907
+      !tnumpart = 150016
+      !tnumpart = 66350
       numpart = tnumpart/numprocs
       if (myid == 0) then
       numpart = numpart + MOD(tnumpart,numprocs)
@@ -11343,9 +11434,9 @@ c      brc_r = 4*(nnz+2)*3*2 !Brian 7/14/14
       do idx=1,numpart
       xv = ran2(iseed)*(xmax-xmin) + xmin
       yv = ran2(iseed)*(ymax-ymin) + ymin
-      zv = ran2(iseed)*(zl-2.0*delta_vis) + delta_vis 
-      call create_particle((/xv,yv,zv/),vp_init,
-     +         Tp_init,qf_init,idx) 
+      zv = ran2(iseed)*(zl-2.0*delta_vis) + delta_vis     !Brian 2/20/15 No droplets in viscous region
+      call create_particle((/xv,yv,zv/),(/0.01,0.0,0.0/),
+     +         Tbot(1),Ttop(2),idx)  !Brian 7/29/14 Currently ignoring Tp and qinfp
       end do
 
       partTsrc = 0.0
@@ -11357,6 +11448,38 @@ c      brc_r = 4*(nnz+2)*3*2 !Brian 7/14/14
 
 
       end subroutine particle_init
+
+
+
+      subroutine thermal_and_part_prop
+      use particles
+      use pars
+      implicit none 
+
+      rhoa = 1.1 !kg/m^3 mixture ** Might want to consider 1.1 (26C, 970hPa) -> mu?   http://www.baranidesign.com/air-density/air-density.htm
+      rhow = 1000.0 !kg/m^3
+      part_grav = 0.0
+      nuf  = 1.537e-5 !m^2/s
+
+      !Thermal stuff:
+      Cpa = 1006.0 !http://www.mhtl.uwaterloo.ca/old/onlinetools/airprop/airprop.html
+      Cpp = 4179.0 !J/kg-K
+      CpaCpp = Cpa/Cpp
+      Pra = 0.715 !nuf/2.1145E-5 !0.71
+      Sc = 0.615 !nuf/0.000024992 !Brian 7/29/14  (@25degC: Dm =0.000025 = 25E-6m2/s)
+      Mw = 0.018015 !kg/mol !Brian 7/29/14 
+      Ru = 8.3144621 !m^3*Pa/K/mol !Brian 7/29/14
+      Ms = 0.05844  !kg/mol
+
+      delta_vis = 0.000163 !Bounce at viscous length
+      radius_init = 40.0e-6 !m
+      radius_mass = 40.0e-6 !m
+      Sal = 34.0 !PSU ~=gNaCl/kgH2O
+
+      end subroutine  thermal_and_part_prop
+
+
+
 
 
       subroutine particle_setup
@@ -11371,7 +11494,6 @@ c      brc_r = 4*(nnz+2)*3*2 !Brian 7/14/14
       real :: pi
       integer(kind=MPI_ADDRESS_KIND) :: extent,lb
       integer(kind=MPI_ADDRESS_KIND) :: extent2,lb2,displs(3)
-      integer :: num_reals
 
       !First set up the neighbors for the interpolation stage:
       call assign_nbrs
@@ -11383,6 +11505,8 @@ c      brc_r = 4*(nnz+2)*3*2 !Brian 7/14/14
     
 
       m_s = Sal/1000.0*4.0/3.0*pi*radius_mass**3*rhow
+
+
 
 
       if (myid==0) write(*,*) 'Init Particle radius = ',radius_init  !Brian 7/14/14
@@ -11399,10 +11523,8 @@ c      brc_r = 4*(nnz+2)*3*2 !Brian 7/14/14
 
       !Set up MPI datatypes for sending particle information
       !MUST UPDATE IF THINGS ARE ADDED/REMOVED FROM PARTICLE STRUCTURE
-
-      num_reals = 5*3+8
       
-      blcts(1:3) = (/2,num_reals,2/)
+      blcts(1:3) = (/2,5*3+8,2/) !3*5+8 reals (eg. Tp,Tprhs,Tf)
       displs(1) = 0
       types(1) = mpi_integer
       call mpi_type_get_extent(mpi_integer,lb,extent,ierr)
@@ -11411,8 +11533,8 @@ c      brc_r = 4*(nnz+2)*3*2 !Brian 7/14/14
       displs(2) = extent*2
       types(2) = mpi_real8
       call mpi_type_get_extent(mpi_real8,lb,extent,ierr)
-      !Displace num_reals*size of mpi_real8
-      displs(3) = displs(2) + extent*num_reals
+      !Displace (6*3)*size of mpi_real8 (5 3-vectors plus Tp,Tprhs,Tf...)
+      displs(3) = displs(2) + extent*(5*3+8)
       types(3) = mpi_integer8
 
       !Now define the type:
@@ -11681,6 +11803,10 @@ c      brc_r = 4*(nnz+2)*3*2 !Brian 7/14/14
      +                   mpi_mode_rdonly,
      +                   mpi_info_null,fh,ierr)
 
+      !First read in the residual array:
+!      offset = 0
+!      call mpi_file_read_at_all(fh,offset,residual,rbins,
+!     +                      mpi_real8,istatus,ierr)
 
       !Read in the total number of particles:
       offset = 0
@@ -12032,65 +12158,58 @@ c      brc_r = 4*(nnz+2)*3*2 !Brian 7/14/14
 !      end do
 
       end subroutine particle_coupling_update
-
-      subroutine read_input_file
-      use pars
+      subroutine particle_test
       use particles
-      use con_data
+      use pars
       implicit none
+      include 'mpif.h'
 
-      character(48) :: label
-      character(180) :: params_dir
-      namelist /step_params/ iti,itmax,imean,ihst,itape,
-     +                       itstr,it_his,it_viz,i_viz,itn
+      integer :: istatus(mpi_status_size), ierr, fh
+      integer(kind=mpi_offset_kind) :: zoffset,offset
+      integer :: iproc,i
+      type(particle) :: writebuf(2),readbuf
+      character*80 :: filename
+    
 
-      namelist /grid_params/ ncpu_s, Uo, Ttop, Tbot,
-     +         qstar, tsfcc,
-     +         zi, zl, xl, yl, zw1
+      !filename = '/ptmp/drichter/data/sp1/part_test'
+      filename = '/ptmp/drichter/data/pc2/particle_res.sp1001'
+!      call mpi_file_open(mpi_comm_world,filename,
+!     +                   mpi_mode_create+mpi_mode_rdwr,
+!     +                   mpi_info_null,fh,ierr)
+!
+!      if (myid==4) then
+!      writebuf(1) = first_particle
+!      writebuf(2) = first_particle
+!      offset = 0
+!      
+!      call mpi_file_write_at(fh,offset,writebuf,2,
+!     +                       particletype,istatus,ierr)
+!      write(*,'a30,i') 'wrote writebuf%pidx = ',writebuf(1)%pidx
+!      write(*,'a30,3e15.6') 'wrote writebuf(1)%vp =',writebuf(1)%vp(1:3)
+!      write(*,'a30,3e15.6') 'wrote writebuf(1)%xp =',writebuf(1)%xp(1:3)
+!
+!      end if
+!
+!      call mpi_file_close(fh,ierr)
+!      call mpi_barrier(mpi_comm_world,ierr)
+      call mpi_file_open(mpi_comm_world,filename,
+     +                   mpi_mode_rdonly,
+     +                   mpi_info_null,fh,ierr)
 
-      namelist /path_names/ path_seed,path_part,path_res,
-     +         path_sav,path_his,path_viz_xy,path_viz_xz,
-     +         path_viz_yz,path_stuf,path_ran
+      offset = 0
+      do i = 1,1
+      call mpi_file_read_at(fh,offset,readbuf,1,
+     +                       particletype,istatus,ierr)
+      offset = offset + sizeof(readbuf)-4
+      write(*,'(a30,i,i)') 'read i,readbuf%pidx = ',i,readbuf%pidx
+      write(*,'(a30,i,3e15.6)') 'read i,readbuf(1)%vp =',
+     +         i,readbuf%vp(1:3)
+      write(*,'(a30,i,3e15.6)') 'read i,readbuf(1)%xp =',
+     +         i,readbuf%xp(1:3)
+      end do
 
-      namelist /flags/ ismlt,ifree,isfc,iradup,
-     +         iupwnd,ibuoy,ifilt,itcut,isubs,ibrcl,iocean,
-     +         method,idebug,iz_space,ivis0,ifix_dt,new_vis,iDNS,
-     +         ispray,icouple,iTcouple,iHcouple,ievap
-
-
-      namelist /constants/ rhoa, nuf, Cpa, Pra, Sc,
-     +         tnumpart,rhow,part_grav,
-     +         Cpp,Mw,Ms,Ru,Gam,Ion,Os,Sal,
-     +         radius_init,radius_mass,delta_vis,
-     +         grav, t00,fcor,
-     +         vp_init,Tp_init,qf_init
-
-
-      !params.in contains namelists to read
-      !open(12, file="./params.in", status="old")
-      call get_command_argument(1,params_dir)
-      open(12,file=params_dir,status="old")
-
-      read(12,nml=step_params)
-      if (myid==0) print step_params
-
-      read(12,nml=flags)
-      if (myid==0) print flags
-
-      read(12,nml=grid_params)
-      if (myid==0) print grid_params
-
-      read(12,nml=path_names)
-      if (myid==0) print path_names
-
-      read(12,nml=constants)
-      if (myid==0) print constants
-      CpaCpp = Cpa/Cpp
-
-
-
-      end subroutine read_input_file
-
+      call mpi_file_close(fh,ierr)
+      end subroutine particle_test
       function ran2(idum)
       integer :: idum,IM1,IM2,IMM1,IA1,IA2,IQ1,IQ2,IR1,IR2,NTAB,NDIV
       real :: ran2,AM,EPS,RNMX
