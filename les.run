@@ -1,28 +1,29 @@
 #!/bin/bash
 
-#$ -M YOUR EMAIL ADDRESS
+#$ -M drichte2@nd.edu
 #$ -m n
-#$ -pe mpi-16 64
+#$ -pe mpi-16 16
 #$ -q *@@richter,*@@ivybridge
-#$ -N tutorial
+#$ -N testcase
 #$ -j y
 
-case=case1
-time=0000000
-runout=$case.out.$time
-
-datadir=/scratch365/YOUR_NDID/tutorial/$case
-homedir=~/tutorial/$case
-
-cd $homedir
+cd ~/Research/YIP/testcase/
 
 module load mvapich2/2.1-intel-15.0-mlx
 module load intel/15.0
+make clean
+make
+
+case=testcase
+time=0000000
+datadir=/scratch365/drichte2/YIP/testcase/
+
+runout=$case.out.$time
 
 imachine=0
 echo $imachine > ./mach.file
 echo $datadir >> ./mach.file
 
-mpirun -n 64 $homedir/../build/lesmpi.a $homedir/params.in > $datadir/$runout
+mpirun -n 4 ./lesmpi.a > $datadir/$runout
 
 
