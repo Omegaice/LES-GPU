@@ -29,6 +29,12 @@ if (BUILD_FORTRAN)
   install ( TARGETS lesmpi.a RUNTIME DESTINATION "bin")
 endif (BUILD_FORTRAN)
 
+# CUDA
+option( BUILD_CUDA "Build CUDA code" OFF)
+if (BUILD_CUDA)
+  find_package(CUDA REQUIRED)
+endif(BUILD_CUDA)
+
 option( BUILD_TESTS "Build LES tests" ON)
 if (BUILD_TESTS)
   # Download and unpack googletest at configure time
@@ -54,6 +60,11 @@ if (BUILD_TESTS)
 
   include_directories("test/")
 
-  add_executable (les-test "test/main.cpp" "test/utility.cpp" "test/reference.cpp")
+  if (BUILD_CUDA)
+    cuda_include_directories("${gtest_SOURCE_DIR}/include" "test/")
+    cuda_add_executable (les-test "test/main.cpp" "test/utility.cpp" "test/reference.cpp" "test/cuda.cu")
+  else (BUILD_CUDA)
+    add_executable (les-test "test/main.cpp" "test/utility.cpp" "test/reference.cpp")
+  endif (BUILD_CUDA)
   target_link_libraries (les-test gtest)
 endif (BUILD_TESTS)
