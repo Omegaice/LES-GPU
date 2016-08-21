@@ -58,7 +58,7 @@ __global__ void GPUUpdateParticles( const int it, const int istage, const double
     for( int j = 0; j < 3; j++ ) {
         diff[j] = particles[idx].vp[j] - particles[idx].uf[j];
     }
-    double diffnorm = ( diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2] );
+    double diffnorm = std::sqrt( diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2] );
     double Rep = 2.0 * particles[idx].radius * diffnorm / nuf;
     double Volp = pi2 * 2.0 / 3.0 * ( particles[idx].radius * particles[idx].radius * particles[idx].radius);
     double rhop = ( m_s + Volp * rhow ) / Volp;
@@ -130,47 +130,30 @@ TEST( ParticleCUDA, ParticleUpdate ) {
     Particle *result = new Particle[10];
     gpuErrchk( cudaMemcpy(result, dParticles, sizeof(Particle) * 10, cudaMemcpyDeviceToHost) );
 
-    for( int i = 0; i < 10; i++ ){
-        ASSERT_EQ( expected[i].pidx, result[i].pidx ) << "I: " << i;
-        ASSERT_EQ( expected[i].procidx, result[i].procidx ) << "I: " << i;
-
-        for( int j = 0; j < 3; j++ ) {
-			//std::cout << expected[i].vp[j] << " " << input[i]->vp[j] << std::endl;
+    for( int i = 0; i < 10; i++ ) {
+		for( int j = 0; j < 3; j++ ) {
 			ASSERT_FLOAT_EQ( expected[i].vp[j], result[i].vp[j] ) << "I: " << i << " J: " << j;
 		}
-		//std::cout << std::endl;
-
-        for( int j = 0; j < 3; j++ ) {
-			//std::cout << expected[i].xp[j] << " " << input[i]->xp[j] << std::endl;
+		for( int j = 0; j < 3; j++ ) {
 			ASSERT_FLOAT_EQ( expected[i].xp[j], result[i].xp[j] ) << "I: " << i << " J: " << j;
 		}
-		//std::cout << std::endl;
-
-        for( int j = 0; j < 3; j++ ) {
-			//std::cout << expected[i].uf[j] << " " << input[i]->uf[j] << std::endl;
+		for( int j = 0; j < 3; j++ ) {
 			ASSERT_FLOAT_EQ( expected[i].uf[j], result[i].uf[j] ) << "I: " << i << " J: " << j;
 		}
-		//std::cout << std::endl;
-
-        for( int j = 0; j < 3; j++ ) {
-			//std::cout << expected[i].xrhs[j] << " " << input[i]->xrhs[j] << std::endl;
+		for( int j = 0; j < 3; j++ ) {
 			ASSERT_FLOAT_EQ( expected[i].xrhs[j], result[i].xrhs[j] ) << "I: " << i << " J: " << j;
 		}
-		//std::cout << std::endl;
-
-        for( int j = 0; j < 3; j++ ) {
-			//std::cout << expected[i].vrhs[j] << " " << input[i]->vrhs[j] << std::endl;
+		for( int j = 0; j < 3; j++ ) {
 			ASSERT_FLOAT_EQ( expected[i].vrhs[j], result[i].vrhs[j] ) << "I: " << i << " J: " << j;
 		}
-		//std::cout << std::endl;
 
-        ASSERT_FLOAT_EQ( expected[i].Tp, result[i].Tp ) << "I: " << i;
-        ASSERT_FLOAT_EQ( expected[i].Tprhs_s, result[i].Tprhs_s ) << "I: " << i;
-        ASSERT_FLOAT_EQ( expected[i].Tprhs_L, result[i].Tprhs_L ) << "I: " << i;
-        ASSERT_FLOAT_EQ( expected[i].Tf, result[i].Tf ) << "I: " << i;
-        ASSERT_FLOAT_EQ( expected[i].radius, result[i].radius ) << "I: " << i;
-        ASSERT_FLOAT_EQ( expected[i].radrhs, result[i].radrhs ) << "I: " << i;
-        ASSERT_FLOAT_EQ( expected[i].qinf, result[i].qinf ) << "I: " << i;
-        ASSERT_FLOAT_EQ( expected[i].qstar, result[i].qstar ) << "I: " << i;
-    }
+		ASSERT_FLOAT_EQ( expected[i].Tp, result[i].Tp ) << "I: " << i;
+		ASSERT_FLOAT_EQ( expected[i].Tprhs_s, result[i].Tprhs_s ) << "I: " << i;
+		ASSERT_FLOAT_EQ( expected[i].Tprhs_L, result[i].Tprhs_L ) << "I: " << i;
+		ASSERT_FLOAT_EQ( expected[i].Tf, result[i].Tf ) << "I: " << i;
+		ASSERT_FLOAT_EQ( expected[i].radius, result[i].radius ) << "I: " << i;
+		ASSERT_FLOAT_EQ( expected[i].radrhs, result[i].radrhs ) << "I: " << i;
+		ASSERT_FLOAT_EQ( expected[i].qinf, result[i].qinf ) << "I: " << i;
+		ASSERT_FLOAT_EQ( expected[i].qstar, result[i].qstar ) << "I: " << i;
+	}
 }
