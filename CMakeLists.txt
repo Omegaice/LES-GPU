@@ -7,19 +7,27 @@ if (NOT CMAKE_BUILD_TYPE)
   set (CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release." FORCE)
 endif (NOT CMAKE_BUILD_TYPE)
 
-# Require MPI
-find_package(MPI REQUIRED)
-set( CMAKE_Fortran_COMPILER ${MPI_Fortran_COMPILER})
+option( BUILD_FORTRAN "Build Fortran code" OFF)
+if (BUILD_FORTRAN)
+  # Require MPI
+  find_package(MPI REQUIRED)
+  set( CMAKE_Fortran_COMPILER ${MPI_Fortran_COMPILER})
 
-# Setup Compile Flags
-set (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE} -i4 -r8")
-set (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS_DEBUG} -i4 -r8")
+  # Setup Compile Flags
+  set (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE} -i4 -r8")
+  set (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS_DEBUG} -i4 -r8")
 
-# Build Library
-add_library (fft STATIC "fft.f")
+  # Build Library
+  add_library (fft STATIC "fft.f")
 
-# Build Executable
-set_source_files_properties( "les.F" COMPILE_FLAGS "-assume byterecl")
+  # Build Executable
+  set_source_files_properties( "les.F" COMPILE_FLAGS "-assume byterecl")
+
+  add_executable (lesmpi.a "les.F")
+  target_link_libraries (lesmpi.a fft)
+
+  install ( TARGETS lesmpi.a RUNTIME DESTINATION "bin")
+endif (BUILD_FORTRAN)
 
 option( BUILD_TESTS "Build LES tests" ON)
 if (BUILD_TESTS)
@@ -47,8 +55,3 @@ if (BUILD_TESTS)
   add_executable (les-test "test/main.cpp" "test/reference.cpp")
   target_link_libraries (les-test gtest)
 endif (BUILD_TESTS)
-
-add_executable (lesmpi.a "les.F")
-target_link_libraries (lesmpi.a fft)
-
-install ( TARGETS lesmpi.a RUNTIME DESTINATION "bin")
