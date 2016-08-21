@@ -52,6 +52,8 @@ if (BUILD_TESTS)
     include_directories("${gtest_SOURCE_DIR}/include")
   endif()
 
-  add_executable (les-test "test/main.cpp" "test/reference.cpp")
+  include_directories("test/")
+
+  add_executable (les-test "test/main.cpp" "test/utility.cpp" "test/reference.cpp")
   target_link_libraries (les-test gtest)
 endif (BUILD_TESTS)
