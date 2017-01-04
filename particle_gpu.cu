@@ -344,21 +344,19 @@ __global__ void GPUUpdatePeriodic( const double grid_width, const double grid_he
 
 __global__ void GPUCalculateStatistics( const int nx, const int ny, const int nnz, const double dx, const double dy, const double *z, const double *zz, double *partcount_t, const int pcount, Particle* particles ) {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if ( idx >= pcount ) return;
+    if ( idx >= nnz ) return;
 
-    const int ipt = floor(particles[idx].xp[0]/dx) + 1;
-    const int jpt = floor(particles[idx].xp[1]/dy) + 1;
-
-    int kpt = -1;
-    for( int iz = 0; iz < nnz+1; iz++ ){
-        if (zz[iz] > particles[idx].xp[2]){
-            kpt = iz-1;
-            break;
+    partcount_t[idx] = 0.0;
+    for( int i = 0; i < pcount; i++ ){
+        int kpt = -1;
+        for( int iz = 0; iz < nnz+1; iz++ ){
+            if (z[iz] > particles[i].xp[2]){
+                kpt = iz-1;
+                break;
+            }
         }
+        if( kpt == idx ) partcount_t[idx] += 1.0;
     }
-
-    partcount_t[ipt+jpt*nx+kpt*ny*nx] += 1.0;
-    printf("GPU Pos[%d, %d, %d = %d] %f\n", ipt, jpt, kpt, ipt+jpt*nx+kpt*ny*nx, partcount_t[ipt+jpt*nx+kpt*ny*nx] += 1.0);
 }
 
 extern "C" double rand2(int idum, bool reset) {
@@ -446,8 +444,8 @@ extern "C" GPU* NewGPU(const int particles, const int width, const int height, c
     retVal->hStat = (double*) malloc( sizeof(double) * retVal->pCount * 4 );
     gpuErrchk( cudaMalloc( (void **)&retVal->dStat, sizeof(double) * retVal->pCount * 4 ) );
 
-    retVal->hPartCount = (double*) malloc( sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepthHalo );
-    gpuErrchk( cudaMalloc( (void **)&retVal->dPartCount, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepthHalo ) );
+    retVal->hPartCount = (double*) malloc( sizeof(double) * retVal->GridDepthHalo );
+    gpuErrchk( cudaMalloc( (void **)&retVal->dPartCount, sizeof(double) * retVal->GridDepthHalo ) );
 
     return retVal;
 }
@@ -568,32 +566,14 @@ extern "C" void ParticleUpdatePeriodic( GPU *gpu ) {
 }
 
 extern "C" void ParticleCalculateStatistics( GPU *gpu, const double dx, const double dy, const int nnz, const int nny, const int nnx, double *partcount_t, double* dzw ) {
-    memset( gpu->hPartCount, 0.0, sizeof(double) * gpu->GridWidth * gpu->GridHeight * gpu->GridDepthHalo );
-    gpuErrchk( cudaMemcpy(gpu->dPartCount, gpu->hPartCount, sizeof(double) * gpu->GridWidth * gpu->GridHeight * gpu->GridDepthHalo, cudaMemcpyHostToDevice) );
-
-    GPUCalculateStatistics<<< (gpu->pCount / 32) + 1, 32 >>> ( nnx, nny, nnz, dx, dy, gpu->dZ, gpu->dZZ, gpu->dPartCount, gpu->pCount, gpu->dParticles);
+    GPUCalculateStatistics<<< (gpu->GridDepthHalo / 32) + 1, 32 >>> ( gpu->GridWidth, gpu->GridHeight, gpu->GridDepthHalo, dx, dy, gpu->dZ, gpu->dZZ, gpu->dPartCount, gpu->pCount, gpu->dParticles);
     gpuErrchk( cudaPeekAtLastError() );
 
-    printf("Particles: %d\n", gpu->pCount);
-    gpuErrchk( cudaMemcpy(gpu->hPartCount, gpu->dPartCount, sizeof(double) * gpu->GridWidth * gpu->GridHeight * gpu->GridDepthHalo, cudaMemcpyDeviceToHost) );
-
-    double *hZCount = (double*) malloc( sizeof(double) * gpu->GridDepthHalo );
-    memset( hZCount, 0.0, sizeof(double) * gpu->GridDepthHalo );
-    for( int i = 0; i < nnx; i++ ){
-        for( int j = 0; j < nny; j++ ){
-            for( int k = 0; k < nnz; k++ ){
-                hZCount[k] += gpu->hPartCount[i+j*nnx+k*nnx*nny];
-            }
-        }
-    }
-
-    for( int i = 0; i < nnz; i++ ){
-        //hZCount[i] = hZCount[i] / gpu->FieldWidth / gpu->FieldHeight / dzw[i];
-        printf("Z[%d] Count: %f\n", i, hZCount[i]);
+    gpuErrchk( cudaMemcpy(gpu->hPartCount, gpu->dPartCount, sizeof(double) * gpu->GridDepthHalo, cudaMemcpyDeviceToHost) );
+    for( int i = 0; i < gpu->GridDepthHalo; i++ ){
+        printf("Z[%d] Count: %f\n", i, gpu->hPartCount[i]);
     }
     printf("\n");
-
-    free(hZCount);
 }
 
 extern "C" void ParticleDownloadHost( GPU *gpu ) {
