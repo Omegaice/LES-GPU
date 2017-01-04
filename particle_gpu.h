@@ -15,6 +15,10 @@ struct GPU {
 	int GridHeight, GridWidth, GridDepth, ZSize;
 	double FieldWidth, FieldHeight, FieldDepth, FieldVis;
 	double *dUext, *dVext, *dWext, *dText, *dQext, *dZ, *dZZ;
+
+	// Statistics
+	double RepAverage, Phip, Phiw, Phiv;
+	double *hStat, *dStat;
 };
 
 extern "C" double rand2(int idum, bool reset = false);

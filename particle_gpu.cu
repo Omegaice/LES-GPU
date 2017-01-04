@@ -207,7 +207,7 @@ __global__ void GPUFieldInterpolate( const int nx, const int ny, const double dx
     }
 }
 
-__global__ void GPUUpdateParticles( const int it, const int stage, const double dt, const int pcount, Particle* particles ) {
+__global__ void GPUUpdateParticles( const int it, const int stage, const double dt, const int pcount, Particle* particles, double* statBuffer ) {
     const double ievap = 1;
 
 	const double Gam = 7.28 * std::pow( 10.0, -2 );
@@ -252,10 +252,15 @@ __global__ void GPUUpdateParticles( const int it, const int stage, const double 
     }
     double diffnorm = std::sqrt( diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2] );
     double Rep = 2.0 * particles[idx].radius * diffnorm / nuf;
+    statBuffer[idx*4+0] = Rep;
+
     double Volp = pi2 * 2.0 / 3.0 * ( particles[idx].radius * particles[idx].radius * particles[idx].radius);
     double rhop = ( m_s + Volp * rhow ) / Volp;
-    double taup_i = 18.0 * rhoa * nuf / rhop / ( (2.0 * particles[idx].radius) * (2.0 * particles[idx].radius) );
+    statBuffer[idx*4+1] = Volp*rhop;
+    statBuffer[idx*4+2] = Volp*rhow;
+    statBuffer[idx*4+3] = Volp;
 
+    double taup_i = 18.0 * rhoa * nuf / rhop / ( (2.0 * particles[idx].radius) * (2.0 * particles[idx].radius) );
     double corrfac = 1.0 + 0.15 * pow( Rep, 0.687 );
     double Nup = 2.0 + 0.6 * pow( Rep, 0.5 ) * pow( Pra, 1.0 / 3.0 );
     double Shp = 2.0 + 0.6 * pow( Rep, 0.5 ) * pow( Sc, 1.0 / 3.0 );
@@ -415,6 +420,10 @@ extern "C" GPU* NewGPU(const int particles, const int width, const int height, c
     gpuErrchk( cudaMalloc( (void **)&retVal->dZ, sizeof(double) * retVal->ZSize ) );
     gpuErrchk( cudaMalloc( (void **)&retVal->dZZ, sizeof(double) * retVal->ZSize ) );
 
+    // Statistics
+    retVal->hStat = (double*) malloc( sizeof(double) * retVal->pCount * 4 );
+    gpuErrchk( cudaMalloc( (void **)&retVal->dStat, sizeof(double) * retVal->pCount * 4 ) );
+
     return retVal;
 }
 
@@ -499,7 +508,26 @@ extern "C" void ParticleInterpolate( GPU *gpu, const double dx, const double dy,
 }
 
 extern "C" void ParticleStep( GPU *gpu, const int it, const int istage, const double dt ) {
-    GPUUpdateParticles<<< (gpu->pCount / 32) + 1, 32 >>> (it, istage, dt, gpu->pCount, gpu->dParticles);
+    GPUUpdateParticles<<< (gpu->pCount / 32) + 1, 32 >>> (it, istage, dt, gpu->pCount, gpu->dParticles, gpu->dStat);
+
+    // Get Statistics
+    gpuErrchk( cudaMemcpy( gpu->hStat, gpu->dStat, sizeof(double) * gpu->pCount, cudaMemcpyDeviceToHost ) );
+
+    gpu->RepAverage = 0.0;
+    gpu->Phip = 0.0; gpu->Phiw = 0.0; gpu->Phiv = 0.0;
+    for( size_t i = 0; i < gpu->pCount; i++ ){
+        gpu->RepAverage += gpu->hStat[i*4+0];
+        gpu->Phip += gpu->hStat[i*4+1];
+        gpu->Phiw += gpu->hStat[i*4+2];
+        gpu->Phiv += gpu->hStat[i*4+3];
+    }
+    gpu->RepAverage /= gpu->pCount;
+
+    gpu->Phip = gpu->Phip/gpu->FieldWidth/gpu->FieldHeight/gpu->FieldDepth/1.1;
+    gpu->Phiw = gpu->Phiw/gpu->FieldWidth/gpu->FieldHeight/gpu->FieldDepth/1.1;
+    gpu->Phiv = gpu->Phiv/gpu->FieldWidth/gpu->FieldHeight/gpu->FieldDepth;
+
+    // Check for errors
     gpuErrchk( cudaPeekAtLastError() );
 }
 
