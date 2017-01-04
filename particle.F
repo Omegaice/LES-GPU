@@ -269,6 +269,7 @@
           !(i.e. the node in the negative direction for x,y,z)
           !and computes quantities needed to get particle statistics
           partcount_t(kpt,jpt,ipt) = partcount_t(kpt,jpt,ipt) + 1.0
+          write(*,*) "GPU Pos",kpt,jpt,ipt,partcount_t(kpt,jpt,ipt)
 
           !Get su mean, mean-squared of particle velocities at each
           !level

@@ -342,6 +342,25 @@ __global__ void GPUUpdatePeriodic( const double grid_width, const double grid_he
     }
 }
 
+__global__ void GPUCalculateStatistics( const int nx, const int ny, const int nnz, const double dx, const double dy, const double *z, const double *zz, double *partcount_t, const int pcount, Particle* particles ) {
+    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if ( idx >= pcount ) return;
+
+    const int ipt = floor(particles[idx].xp[0]/dx) + 1;
+    const int jpt = floor(particles[idx].xp[1]/dy) + 1;
+
+    int kpt = -1;
+    for( int iz = 0; iz < nnz+1; iz++ ){
+        if (zz[iz] > particles[idx].xp[2]){
+            kpt = iz-1;
+            break;
+        }
+    }
+
+    partcount_t[ipt+jpt*nx+kpt*ny*nx] += 1.0;
+    printf("GPU Pos[%d, %d, %d = %d] %f\n", ipt, jpt, kpt, ipt+jpt*nx+kpt*ny*nx, partcount_t[ipt+jpt*nx+kpt*ny*nx] += 1.0);
+}
+
 extern "C" double rand2(int idum, bool reset) {
       const int NTAB = 32;
       static int iv[NTAB], iy = 0, idum2 = 123456789;
@@ -407,15 +426,18 @@ extern "C" GPU* NewGPU(const int particles, const int width, const int height, c
 
     // Grid Data
     retVal->GridWidth = width;
+    retVal->GridWidthHalo = width + 6;
     retVal->GridHeight = height;
+    retVal->GridHeightHalo = height + 6;
     retVal->GridDepth = depth;
+    retVal->GridDepthHalo = depth + 2;
     retVal->ZSize = zsize;
 
-    gpuErrchk( cudaMalloc( (void **)&retVal->dUext, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth ) );
-    gpuErrchk( cudaMalloc( (void **)&retVal->dVext, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth ) );
-    gpuErrchk( cudaMalloc( (void **)&retVal->dWext, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth ) );
-    gpuErrchk( cudaMalloc( (void **)&retVal->dText, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth ) );
-    gpuErrchk( cudaMalloc( (void **)&retVal->dQext, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth ) );
+    gpuErrchk( cudaMalloc( (void **)&retVal->dUext, sizeof(double) * retVal->GridWidthHalo * retVal->GridHeightHalo * retVal->GridDepthHalo ) );
+    gpuErrchk( cudaMalloc( (void **)&retVal->dVext, sizeof(double) * retVal->GridWidthHalo * retVal->GridHeightHalo * retVal->GridDepthHalo ) );
+    gpuErrchk( cudaMalloc( (void **)&retVal->dWext, sizeof(double) * retVal->GridWidthHalo * retVal->GridHeightHalo * retVal->GridDepthHalo ) );
+    gpuErrchk( cudaMalloc( (void **)&retVal->dText, sizeof(double) * retVal->GridWidthHalo * retVal->GridHeightHalo * retVal->GridDepthHalo ) );
+    gpuErrchk( cudaMalloc( (void **)&retVal->dQext, sizeof(double) * retVal->GridWidthHalo * retVal->GridHeightHalo * retVal->GridDepthHalo ) );
 
     gpuErrchk( cudaMalloc( (void **)&retVal->dZ, sizeof(double) * retVal->ZSize ) );
     gpuErrchk( cudaMalloc( (void **)&retVal->dZZ, sizeof(double) * retVal->ZSize ) );
@@ -424,15 +446,18 @@ extern "C" GPU* NewGPU(const int particles, const int width, const int height, c
     retVal->hStat = (double*) malloc( sizeof(double) * retVal->pCount * 4 );
     gpuErrchk( cudaMalloc( (void **)&retVal->dStat, sizeof(double) * retVal->pCount * 4 ) );
 
+    retVal->hPartCount = (double*) malloc( sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepthHalo );
+    gpuErrchk( cudaMalloc( (void **)&retVal->dPartCount, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepthHalo ) );
+
     return retVal;
 }
 
 extern "C" void ParticleFieldSet( GPU *gpu, double *uext, double *vext, double *wext, double *text, double *qext, double *z, double *zz ) {
-    gpuErrchk( cudaMemcpy( gpu->dUext, uext, sizeof(double) * gpu->GridWidth * gpu->GridHeight * gpu->GridDepth, cudaMemcpyHostToDevice ) );
-    gpuErrchk( cudaMemcpy( gpu->dVext, vext, sizeof(double) * gpu->GridWidth * gpu->GridHeight * gpu->GridDepth, cudaMemcpyHostToDevice ) );
-    gpuErrchk( cudaMemcpy( gpu->dWext, wext, sizeof(double) * gpu->GridWidth * gpu->GridHeight * gpu->GridDepth, cudaMemcpyHostToDevice ) );
-    gpuErrchk( cudaMemcpy( gpu->dText, text, sizeof(double) * gpu->GridWidth * gpu->GridHeight * gpu->GridDepth, cudaMemcpyHostToDevice ) );
-    gpuErrchk( cudaMemcpy( gpu->dQext, qext, sizeof(double) * gpu->GridWidth * gpu->GridHeight * gpu->GridDepth, cudaMemcpyHostToDevice ) );
+    gpuErrchk( cudaMemcpy( gpu->dUext, uext, sizeof(double) * gpu->GridWidthHalo * gpu->GridHeightHalo * gpu->GridDepthHalo, cudaMemcpyHostToDevice ) );
+    gpuErrchk( cudaMemcpy( gpu->dVext, vext, sizeof(double) * gpu->GridWidthHalo * gpu->GridHeightHalo * gpu->GridDepthHalo, cudaMemcpyHostToDevice ) );
+    gpuErrchk( cudaMemcpy( gpu->dWext, wext, sizeof(double) * gpu->GridWidthHalo * gpu->GridHeightHalo * gpu->GridDepthHalo, cudaMemcpyHostToDevice ) );
+    gpuErrchk( cudaMemcpy( gpu->dText, text, sizeof(double) * gpu->GridWidthHalo * gpu->GridHeightHalo * gpu->GridDepthHalo, cudaMemcpyHostToDevice ) );
+    gpuErrchk( cudaMemcpy( gpu->dQext, qext, sizeof(double) * gpu->GridWidthHalo * gpu->GridHeightHalo * gpu->GridDepthHalo, cudaMemcpyHostToDevice ) );
 
     gpuErrchk( cudaMemcpy( gpu->dZ, z, sizeof(double) * gpu->ZSize, cudaMemcpyHostToDevice ) );
     gpuErrchk( cudaMemcpy( gpu->dZZ, zz, sizeof(double) * gpu->ZSize, cudaMemcpyHostToDevice ) );
@@ -503,7 +528,7 @@ extern "C" void ParticleGenerate(GPU* gpu, const int processors, const int parti
 }
 
 extern "C" void ParticleInterpolate( GPU *gpu, const double dx, const double dy, const int nnz, const int offsetX, const int offsetY, const int offsetZ ) {
-    GPUFieldInterpolate<<< (gpu->pCount / 32) + 1, 32 >>> ( gpu->GridWidth, gpu->GridHeight, dx, dy, gpu->GridDepth, gpu->dZ, gpu->dZZ, 1-offsetX, 1-offsetY, 1-offsetZ, gpu->dUext, gpu->dVext, gpu->dWext, gpu->dText, gpu->dQext, gpu->pCount, gpu->dParticles);
+    GPUFieldInterpolate<<< (gpu->pCount / 32) + 1, 32 >>> ( gpu->GridWidthHalo, gpu->GridHeightHalo, dx, dy, gpu->GridDepthHalo, gpu->dZ, gpu->dZZ, 1-offsetX, 1-offsetY, 1-offsetZ, gpu->dUext, gpu->dVext, gpu->dWext, gpu->dText, gpu->dQext, gpu->pCount, gpu->dParticles);
     gpuErrchk( cudaPeekAtLastError() );
 }
 
@@ -511,6 +536,7 @@ extern "C" void ParticleStep( GPU *gpu, const int it, const int istage, const do
     GPUUpdateParticles<<< (gpu->pCount / 32) + 1, 32 >>> (it, istage, dt, gpu->pCount, gpu->dParticles, gpu->dStat);
 
     // Get Statistics
+    printf("Particles: %d\n", gpu->pCount);
     gpuErrchk( cudaMemcpy( gpu->hStat, gpu->dStat, sizeof(double) * gpu->pCount, cudaMemcpyDeviceToHost ) );
 
     gpu->RepAverage = 0.0;
@@ -539,6 +565,35 @@ extern "C" void ParticleUpdateNonPeriodic( GPU *gpu ) {
 extern "C" void ParticleUpdatePeriodic( GPU *gpu ) {
     GPUUpdatePeriodic<<< (gpu->pCount / 32) + 1, 32 >>> (gpu->FieldWidth, gpu->FieldHeight, gpu->pCount, gpu->dParticles);
     gpuErrchk( cudaPeekAtLastError() );
+}
+
+extern "C" void ParticleCalculateStatistics( GPU *gpu, const double dx, const double dy, const int nnz, const int nny, const int nnx, double *partcount_t, double* dzw ) {
+    memset( gpu->hPartCount, 0.0, sizeof(double) * gpu->GridWidth * gpu->GridHeight * gpu->GridDepthHalo );
+    gpuErrchk( cudaMemcpy(gpu->dPartCount, gpu->hPartCount, sizeof(double) * gpu->GridWidth * gpu->GridHeight * gpu->GridDepthHalo, cudaMemcpyHostToDevice) );
+
+    GPUCalculateStatistics<<< (gpu->pCount / 32) + 1, 32 >>> ( nnx, nny, nnz, dx, dy, gpu->dZ, gpu->dZZ, gpu->dPartCount, gpu->pCount, gpu->dParticles);
+    gpuErrchk( cudaPeekAtLastError() );
+
+    printf("Particles: %d\n", gpu->pCount);
+    gpuErrchk( cudaMemcpy(gpu->hPartCount, gpu->dPartCount, sizeof(double) * gpu->GridWidth * gpu->GridHeight * gpu->GridDepthHalo, cudaMemcpyDeviceToHost) );
+
+    double *hZCount = (double*) malloc( sizeof(double) * gpu->GridDepthHalo );
+    memset( hZCount, 0.0, sizeof(double) * gpu->GridDepthHalo );
+    for( int i = 0; i < nnx; i++ ){
+        for( int j = 0; j < nny; j++ ){
+            for( int k = 0; k < nnz; k++ ){
+                hZCount[k] += gpu->hPartCount[i+j*nnx+k*nnx*nny];
+            }
+        }
+    }
+
+    for( int i = 0; i < nnz; i++ ){
+        //hZCount[i] = hZCount[i] / gpu->FieldWidth / gpu->FieldHeight / dzw[i];
+        printf("Z[%d] Count: %f\n", i, hZCount[i]);
+    }
+    printf("\n");
+
+    free(hZCount);
 }
 
 extern "C" void ParticleDownloadHost( GPU *gpu ) {

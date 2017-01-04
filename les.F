@@ -333,6 +333,11 @@ c
          if(mhis  .and. istage .eq. 1)  call write_his(itop)
          if(mhis  .and. istage .eq. 1 .and. mtape) call close_his
       endif
+
+#ifdef BUILD_CUDA
+      call calculate_statistics
+#endif
+
 c
  8999 continue
       t_stage_f = mpi_wtime()
@@ -6579,6 +6584,7 @@ c
       use con_data
       use con_stats
       use particles
+      include 'mpif.h'
 c
 c ------- indices for indexing array stat(.,.)
 c         js = number of non-scalar stats
@@ -6768,6 +6774,8 @@ c
 c
 c ------ fill arrays for printout and constant file
 c
+      do  i=1,numprocs
+            if(myid .eq. i) then
       do iz=1,nnz
 c
       ups(iz)    = stat(iz,1)*fnxy
@@ -6781,6 +6789,8 @@ c
       uwle(iz)   = stat(iz,9)*fnxy
       vwle(iz)   = stat(iz,10)*fnxy
       zconc(iz)  = stat(iz,11)/xl/yl/dzw(iz)
+      write(*,*) "CPU:", iz, stat(iz,11)
+
 
       ! Avoid floating point exceptions when we have no particles
       if( stat(iz,11) .eq. 0 ) then
@@ -6844,6 +6854,10 @@ c
          wt_tot(iz,l) = wtle(iz,l) + wtsb(iz,l)
       enddo
       enddo
+            write(*,*) ""
+            end if
+            call mpi_barrier(mpi_comm_world,ierr)
+      end do
 c
       return
       end

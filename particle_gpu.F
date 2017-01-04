@@ -103,6 +103,18 @@ module particle_c
             type(c_ptr), VALUE, intent(in)      :: gpu
         end subroutine
 
+        subroutine gpustatistics(gpu,dx,dy,ox,oy,oz,partcount_t,dzw) bind(c,name="ParticleCalculateStatistics")
+            use iso_c_binding, only: c_ptr, c_int, c_double
+            type(c_ptr), VALUE, intent(in)              :: gpu
+            real(c_double), VALUE, intent(in)   :: dx
+            real(c_double), VALUE, intent(in)   :: dy
+            integer(c_int), VALUE, intent(in)   :: ox
+            integer(c_int), VALUE, intent(in)   :: oy
+            integer(c_int), VALUE, intent(in)   :: oz
+            real(c_double), intent(inout), dimension(*)    :: partcount_t
+            real(c_double), intent(inout), dimension(*)    :: dzw
+        end subroutine
+
         subroutine gpudownload(gpu) bind(c,name="ParticleDownloadHost")
             use iso_c_binding, only: c_ptr
             type(c_ptr), VALUE, intent(in)  :: gpu
@@ -137,7 +149,8 @@ contains
             use con_stats, only: z
             use particles
 
-            gpu = newgpu(tnumpart,maxnx+6,maxny+6,maxnz+2,size(z), xl,yl,zl,delta_vis)
+            !gpu = newgpu(tnumpart,maxnx+6,maxny+6,maxnz+2,size(z), xl,yl,zl,delta_vis)
+            gpu = newgpu(tnumpart,maxnx,maxny,maxnz,size(z), xl,yl,zl,delta_vis)
         end subroutine
 
         subroutine transfer_particles()
@@ -200,6 +213,21 @@ contains
                 end do
                 call gpuupload(gpu)
             end if
+        end subroutine
+
+        subroutine calculate_statistics()
+            use pars, only: nnz, nny, nnx, numprocs, myid, dzw
+            use con_data, only: dx, dy
+            use particles
+            use particle_struct
+
+            include 'mpif.h'
+
+            if( myid .eq. gpu_master_rank ) then
+                call gpustatistics(gpu,dx,dy,nnz+2,nny,nnx,partcount_t,dzw)
+            end if
+
+            ! Distribute Statistics to Processors
         end subroutine
 
         subroutine compare_particles()
