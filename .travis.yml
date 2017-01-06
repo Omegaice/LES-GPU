@@ -15,4 +15,5 @@ script:
   - make
   - ./les-test
 after_script:
+  - find ${INTEL_INSTALL_PATH} -name '*uninstall*'
   - '[[ ! -z "${INTEL_INSTALL_PATH}" ]] && uninstall_intel_software'
