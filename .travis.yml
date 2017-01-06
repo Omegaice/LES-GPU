@@ -15,4 +15,5 @@ script:
   - make
   - ./les-test
 after_script:
-  - '[[ ! -z "${INTEL_INSTALL_PATH}" ]] && ${INTEL_INSTALL_PATH}/parallel_studio_xe_2016.3.067/uninstall.sh --help'
+  - sed -i 's/PSET_MODE=install/PSET_MODE=uninstall/g' /tmp/silent.cfg
+  - '[[ ! -z "${INTEL_INSTALL_PATH}" ]] && ${INTEL_INSTALL_PATH}/parallel_studio_xe_2016.3.067/uninstall.sh --silent /tmp/silent.cfg'
