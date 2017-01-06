@@ -5,6 +5,7 @@
 #ifndef BUILD_CUDA
 #include "math.h"
 #include "string.h"
+#include "stdlib.h"
 #endif
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
