@@ -11,7 +11,7 @@ before_install:
   - ./install-icc.sh --components "icc,ifort,mpi"
   - source ~/.bashrc
 script:
-  - cmake -DCMAKE_BUILD_TYPE=DEBUG -DBUILD_TESTS=ON -DBUILD_PARALLEL=ON -DCODE_COVERAGE=ON
+  - cmake -DCMAKE_BUILD_TYPE=DEBUG -DBUILD_TESTS=ON
   - make
   - ./les-test
 after_script:
