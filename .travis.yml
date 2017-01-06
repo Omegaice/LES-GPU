@@ -7,7 +7,6 @@ env:
     - COMPONENTS="icc,ifort,mpi"
 before_install:
   - wget -q -O /dev/stdout 'https://raw.githubusercontent.com/nemequ/icc-travis/master/install-icc.sh' | /bin/sh
-  - ./install-icc.sh --components "${COMPONENTS}"
   - source ~/.bashrc
 script:
   - cmake -DCMAKE_BUILD_TYPE=DEBUG -DBUILD_TESTS=ON -DBUILD_PARALLEL=ON -DCODE_COVERAGE=ON
