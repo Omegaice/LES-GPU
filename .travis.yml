@@ -6,6 +6,7 @@ env:
     - secure: "ayTmSEHbo05BkDAflFQh2ktrhyi0x/+Mw9Q3HkYFRL1omqPoEDoJEvB9h5h7Zgdnj35rfPii2bVzL1M4z9um4cvtaKxtMDyrD5KckP8jlgu8yooOVtbDS0abGMrKjDtI3k2v2a8qagTfDEFUPliJyUqrA8m+7/iZns+0+ApmZIAvMTh2KGNiPiq809ZXDqz1JCFu79B61KVn3MTvXMLYM07HsBWpQKDxHygcL9KGOTYRZWyiDUcqpFQyoEC3QG0dceoexW5mcJ+6eqMwq6BSpZKF36PvtTTAFBDx25Ip3EZ6VkKAqA+KQEJOx78n1dwTynE/hfvaP8tnO02nSLtNFO+HsV3x3+dP1wQNuWNjBzimjHBKmhXD2wQJIk9r+Al3qeCVAtTIMHFbkEHm7ZYboqgF0kmUSCC1U2YkiszGmHM+akO2grJIA7e+1c6/XW0C+51CYLfWGUBDxSg3Nwbgp9fbt3GqZUTS0esehc8/AhqayvEQMM5N9BY1zb1tZSvuWVVadJQzn31PeuKvxeMwMH1l8I1oj2m1VtmBr7fw6xj5AkaIMjAXDBJYl483GIQbPZQ9bJ+q3bMb+XKqkj/URQsmJ0d9WHIch/uNd19JkxZQc+iQMl1zOKZwmen++grLPdsqWcFOx/ZAP5avyHl8wq6fWoOPxjSRvO3rsrpgKh4="
 before_install:
   - wget 'https://raw.githubusercontent.com/nemequ/icc-travis/master/install-icc.sh'
+  - chmod +x install-icc.sh
   - ./install-icc.sh --components "icc,ifort,mpi"
   - source ~/.bashrc
 script:
