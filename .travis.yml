@@ -15,4 +15,4 @@ script:
   - make
   - ./les-test
 after_script:
-  - '[[ ! -z "${INTEL_INSTALL_PATH}" ]] && ${INTEL_INSTALL_PATH}/parallel_studio_xe_2016.3.067/uninstall.sh'
+  - '[[ ! -z "${INTEL_INSTALL_PATH}" ]] && ${INTEL_INSTALL_PATH}/parallel_studio_xe_2016.3.067/uninstall'
