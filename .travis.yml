@@ -11,6 +11,8 @@ before_install:
   - source ~/.bashrc
   - export I_MPI_F90=ifort
 script:
+  - mkdir build
+  - cd build
   - cmake -DCMAKE_BUILD_TYPE=DEBUG -DBUILD_TESTS=ON
   - make
   - ./les-test
