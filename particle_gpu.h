@@ -5,6 +5,10 @@
 #include <string>
 #include <vector>
 
+#ifdef BUILD_CUDA
+#include <cuda_runtime.h>
+#endif
+
 struct Particle {
 	int pidx, procidx;
 	double vp[3], xp[3], uf[3], xrhs[3], vrhs[3];
@@ -37,11 +41,16 @@ struct GPU {
 	int GridHeight, GridWidth, GridDepth;
 	double FieldWidth, FieldHeight, FieldDepth;
 	double *hUext, *hVext, *hWext, *hText, *hQext, *hZ, *hZZ;
+#ifdef BUILD_CUDA
 	double *dUext, *dVext, *dWext, *dText, *dQext, *dZ, *dZZ;
+	cudaTextureObject_t tUext, tVext, tWext, tText, tQext;
+#endif
 
 	// Statistics
 	double *hPartCount, *hVPSum, *hVPSumSQ;
+#ifdef BUILD_CUDA
 	double *dPartCount, *dVPSum, *dVPSumSQ;
+#endif
 };
 
 extern "C" double rand2(int idum, bool reset = false);

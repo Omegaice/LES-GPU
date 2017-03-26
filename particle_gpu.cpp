@@ -24,6 +24,7 @@
 #define GLOBAL
 #define SHARED
 #define CONSTANT
+#define cudaTextureObject_t double*
 #endif
 
 extern "C" int gpudevices(){
@@ -47,6 +48,28 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
       fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
       if (abort) exit(code);
    }
+}
+
+void cudaTextureObjectHelper( cudaTextureObject_t* tex, double* buff, int buff_size ) {
+    // Create the resource description
+    cudaResourceDesc resDesc;
+    memset(&resDesc, 0, sizeof(resDesc));
+    resDesc.resType = cudaResourceTypeLinear;
+    resDesc.res.linear.devPtr = buff;
+    resDesc.res.linear.sizeInBytes = buff_size;
+    resDesc.res.linear.desc.f = cudaChannelFormatKindUnsigned;
+    resDesc.res.linear.desc.x = 32;
+    resDesc.res.linear.desc.y = 32;
+
+    // Create the texture description
+    cudaTextureDesc tex_desc;
+    memset(&tex_desc, 0, sizeof(tex_desc));
+    tex_desc.normalizedCoords = 0;
+    tex_desc.addressMode[0] = cudaAddressModeClamp;
+    tex_desc.readMode = cudaReadModeElementType;
+
+    // Create texture object
+    cudaCreateTextureObject(tex, &resDesc, &tex_desc, NULL);
 }
 #endif
 
@@ -94,7 +117,16 @@ int* ParticleFindXYNeighbours(const double dx, const double dy, const Particle* 
     return hResult;
 }
 
-GLOBAL void GPUFieldInterpolateLinear(const int nx, const int ny, const double dx, const double dy, const int nnz, const double* __restrict__ z, const double* __restrict__ zz, const double* __restrict__ uext, const double* __restrict__ vext, const double* __restrict__ wext, const double* __restrict__ Text, const double* __restrict__ T2ext, const int pcount, Particle* __restrict__ particles) {
+static __inline__ DEVICE double fetch_double(cudaTextureObject_t t, int pos){
+#ifdef BUILD_CUDA
+    uint2 p = tex1Dfetch<uint2>(t, pos);
+    return __hiloint2double(p.y, p.x);
+#else
+    return t[pos];
+#endif
+}
+
+GLOBAL void GPUFieldInterpolateLinear(const int nx, const int ny, const double dx, const double dy, const int nnz, const double* __restrict__ z, const double* __restrict__ zz, cudaTextureObject_t uext, cudaTextureObject_t vext, cudaTextureObject_t wext, cudaTextureObject_t Text, cudaTextureObject_t T2ext, const int pcount, Particle* __restrict__ particles) {
 #ifdef BUILD_CUDA
     for (int idx = blockIdx.x * blockDim.x + threadIdx.x; idx < pcount; idx += blockDim.x * gridDim.x) {
 #else
@@ -181,11 +213,11 @@ GLOBAL void GPUFieldInterpolateLinear(const int nx, const int ny, const double d
                 const double wtz = 1.0 - (abs(particles[idx].xp[2] - zzShared[izuv]) / dzu[kpt+1]);
                 const double wtzw = 1.0 - (abs(particles[idx].xp[2] - zShared[izw]) / dzw[kwpt+1]);
 
-                particles[idx].uf[0] = particles[idx].uf[0] + uext[(ix+1)+(iy+1)*nx+izuv*ny*nx] * wtx * wty * wtz;
-                particles[idx].uf[1] = particles[idx].uf[1] + vext[(ix+1)+(iy+1)*nx+izuv*ny*nx] * wtx * wty * wtz;
-                particles[idx].uf[2] = particles[idx].uf[2] + wext[(ix+1)+(iy+1)*nx+izw*ny*nx] * wtx * wty * wtzw;
-                particles[idx].Tf = particles[idx].Tf + Text[(ix+1)+(iy+1)*nx+izuv*ny*nx] * wtx * wty * wtz;
-                particles[idx].qinf = particles[idx].qinf + T2ext[(ix+1)+(iy+1)*nx+izuv*ny*nx] * wtx * wty * wtz;
+                particles[idx].uf[0] = particles[idx].uf[0] + fetch_double(uext, (ix+1)+(iy+1)*nx+izuv*ny*nx) * wtx * wty * wtz;
+                particles[idx].uf[1] = particles[idx].uf[1] + fetch_double(vext, (ix+1)+(iy+1)*nx+izuv*ny*nx) * wtx * wty * wtz;
+                particles[idx].uf[2] = particles[idx].uf[2] + fetch_double(wext, (ix+1)+(iy+1)*nx+izw*ny*nx) * wtx * wty * wtzw;
+                particles[idx].Tf = particles[idx].Tf + fetch_double(Text, (ix+1)+(iy+1)*nx+izuv*ny*nx) * wtx * wty * wtz;
+                particles[idx].qinf = particles[idx].qinf + fetch_double(T2ext, (ix+1)+(iy+1)*nx+izuv*ny*nx) * wtx * wty * wtz;
             }
         }
     }
@@ -193,7 +225,7 @@ GLOBAL void GPUFieldInterpolateLinear(const int nx, const int ny, const double d
     }
 }
 
-GLOBAL void GPUFieldInterpolate( const int nx, const int ny, const double dx, const double dy, const int nnz, const double* __restrict__ z, const double* __restrict__ zz, const double* __restrict__ uext, const double* __restrict__ vext, const double* __restrict__ wext, const double* __restrict__ Text, const double* __restrict__ T2ext, const int pcount, Particle* __restrict__ particles){
+GLOBAL void GPUFieldInterpolate( const int nx, const int ny, const double dx, const double dy, const int nnz, const double* __restrict__ z, const double* __restrict__ zz, cudaTextureObject_t uext, cudaTextureObject_t vext, cudaTextureObject_t wext, cudaTextureObject_t Text, cudaTextureObject_t T2ext, const int pcount, Particle* __restrict__ particles){
 #ifdef BUILD_CUDA
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if ( idx >= pcount ) return;
@@ -389,11 +421,12 @@ GLOBAL void GPUFieldInterpolate( const int nx, const int ny, const double dx, co
                 const int iy = ijpts[1*6+j];
                 const int izuv = kuvpts[k];
                 const int izw = kwpts[k];
-                particles[idx].uf[0] = particles[idx].uf[0]+uext[(ix+1)+(iy+1)*nx+izuv*ny*nx]*wt[0][i]*wt[1][j]*wt[2][k];
-                particles[idx].uf[1] = particles[idx].uf[1]+vext[(ix+1)+(iy+1)*nx+izuv*ny*nx]*wt[0][i]*wt[1][j]*wt[2][k];
-                particles[idx].uf[2] = particles[idx].uf[2]+wext[(ix+1)+(iy+1)*nx+izw*ny*nx]*wt[0][i]*wt[1][j]*wt[3][k];
-                particles[idx].Tf = particles[idx].Tf+Text[(ix+1)+(iy+1)*nx+izuv*ny*nx]*wt[0][i]*wt[1][j]*wt[2][k];
-                particles[idx].qinf = particles[idx].qinf+T2ext[(ix+1)+(iy+1)*nx+izuv*ny*nx]*wt[0][i]*wt[1][j]*wt[2][k];
+
+                particles[idx].uf[0] = particles[idx].uf[0] + fetch_double(uext, (ix+1)+(iy+1)*nx+izuv*ny*nx) * wt[0][i] * wt[1][j] * wt[2][k];
+                particles[idx].uf[1] = particles[idx].uf[1] + fetch_double(vext, (ix+1)+(iy+1)*nx+izuv*ny*nx) * wt[0][i] * wt[1][j] * wt[2][k];
+                particles[idx].uf[2] = particles[idx].uf[2] + fetch_double(wext, (ix+1)+(iy+1)*nx+izw*ny*nx) * wt[0][i] * wt[1][j] * wt[3][k];
+                particles[idx].Tf = particles[idx].Tf + fetch_double(Text, (ix+1)+(iy+1)*nx+izuv*ny*nx) * wt[0][i] * wt[1][j] * wt[2][k];
+                particles[idx].qinf = particles[idx].qinf + fetch_double(T2ext, (ix+1)+(iy+1)*nx+izuv*ny*nx) * wt[0][i] * wt[1][j] * wt[2][k];
             }
         }
     }
@@ -650,10 +683,19 @@ extern "C" GPU* NewGPU(const int particles, const int width, const int height, c
     gpuErrchk( cudaMalloc( (void **)&retVal->dParticles, sizeof(Particle) * retVal->pCount ) );
 
     gpuErrchk( cudaMalloc( (void **)&retVal->dUext, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth ) );
+    cudaTextureObjectHelper(&retVal->tUext, retVal->dUext, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth);
+
     gpuErrchk( cudaMalloc( (void **)&retVal->dVext, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth ) );
+    cudaTextureObjectHelper(&retVal->tVext, retVal->dVext, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth);
+
     gpuErrchk( cudaMalloc( (void **)&retVal->dWext, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth ) );
+    cudaTextureObjectHelper(&retVal->tWext, retVal->dWext, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth);
+
     gpuErrchk( cudaMalloc( (void **)&retVal->dText, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth ) );
+    cudaTextureObjectHelper(&retVal->tText, retVal->dText, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth);
+
     gpuErrchk( cudaMalloc( (void **)&retVal->dQext, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth ) );
+    cudaTextureObjectHelper(&retVal->tQext, retVal->dQext, sizeof(double) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth);
 
     gpuErrchk( cudaMalloc( (void **)&retVal->dZ, sizeof(double) * retVal->GridDepth ) );
     gpuErrchk( cudaMalloc( (void **)&retVal->dZZ, sizeof(double) * retVal->GridDepth ) );
@@ -797,9 +839,9 @@ extern "C" void ParticleInterpolate( GPU *gpu, const double dx, const double dy 
 #ifdef BUILD_CUDA
     const unsigned int blocks = std::ceil(gpu->pCount / (float)CUDA_BLOCK_THREADS);
     if( gpu->mParameters.LinearInterpolation == 1 ) {
-        GPUFieldInterpolateLinear<<< blocks, CUDA_BLOCK_THREADS, ((gpu->GridDepth*4)+4)*sizeof(double) >>> ( gpu->GridWidth, gpu->GridHeight, dx, dy, gpu->GridDepth, gpu->dZ, gpu->dZZ, gpu->dUext, gpu->dVext, gpu->dWext, gpu->dText, gpu->dQext, gpu->pCount, gpu->dParticles);
+        GPUFieldInterpolateLinear<<< blocks, CUDA_BLOCK_THREADS, ((gpu->GridDepth*4)+4)*sizeof(double) >>> ( gpu->GridWidth, gpu->GridHeight, dx, dy, gpu->GridDepth, gpu->dZ, gpu->dZZ, gpu->tUext, gpu->tVext, gpu->tWext, gpu->tText, gpu->tQext, gpu->pCount, gpu->dParticles);
     }else{
-        GPUFieldInterpolate<<< blocks, CUDA_BLOCK_THREADS, gpu->GridDepth*2*sizeof(double) >>> ( gpu->GridWidth, gpu->GridHeight, dx, dy, gpu->GridDepth, gpu->dZ, gpu->dZZ, gpu->dUext, gpu->dVext, gpu->dWext, gpu->dText, gpu->dQext, gpu->pCount, gpu->dParticles);
+        GPUFieldInterpolate<<< blocks, CUDA_BLOCK_THREADS, gpu->GridDepth*2*sizeof(double) >>> ( gpu->GridWidth, gpu->GridHeight, dx, dy, gpu->GridDepth, gpu->dZ, gpu->dZZ, gpu->tUext, gpu->tVext, gpu->tWext, gpu->tText, gpu->tQext, gpu->pCount, gpu->dParticles);
     }
     gpuErrchk( cudaPeekAtLastError() );
 #else
