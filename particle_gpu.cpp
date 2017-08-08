@@ -48,9 +48,9 @@ extern "C" int gpudevices() {
 
 CONSTANT Parameters cParams;
 
-DEVICE void GPUFindXYNeighbours(const double dx, const double dy, const Particle *__restrict__ particles, int *__restrict__ neighbours) {
-	neighbours[0 * 6 + 2] = floor(particles[0].xp[0] / dx) + 1;
-	neighbours[1 * 6 + 2] = floor(particles[0].xp[1] / dy) + 1;
+DEVICE void GPUFindXYNeighbours(const float dx, const float dy, const Particle *__restrict__ particles, int *__restrict__ neighbours) {
+	neighbours[0 * 6 + 2] = floorf(particles[0].xp[0] / dx) + 1;
+	neighbours[1 * 6 + 2] = floorf(particles[0].xp[1] / dy) + 1;
 
 	neighbours[0 * 6 + 1] = neighbours[0 * 6 + 2] - 1;
 	neighbours[0 * 6 + 0] = neighbours[0 * 6 + 1] - 1;
@@ -65,7 +65,7 @@ DEVICE void GPUFindXYNeighbours(const double dx, const double dy, const Particle
 	neighbours[1 * 6 + 5] = neighbours[1 * 6 + 4] + 1;
 }
 
-GLOBAL void GGPUFindXYNeighbours(const double dx, const double dy, const Particle *__restrict__ particles, int *__restrict__ neighbours) {
+GLOBAL void GGPUFindXYNeighbours(const float dx, const float dy, const Particle *__restrict__ particles, int *__restrict__ neighbours) {
 	GPUFindXYNeighbours(dx, dy, particles, neighbours);
 }
 
@@ -90,7 +90,7 @@ int *ParticleFindXYNeighbours(const double dx, const double dy, const Particle *
 	return hResult;
 }
 
-GLOBAL void GPUFieldInterpolateLinear(const int nx, const int ny, const double dx, const double dy, const int nnz, const double *__restrict__ z, const double *__restrict__ zz, const fieldSize *__restrict__ uext, const fieldSize *__restrict__ vext, const fieldSize *__restrict__ wext, const fieldSize *__restrict__ Text, const fieldSize *__restrict__ T2ext, const int pcount, Particle *__restrict__ particles) {
+GLOBAL void GPUFieldInterpolateLinear(const int nx, const int ny, const float dx, const float dy, const int nnz, const float *__restrict__ z, const float *__restrict__ zz, const fieldSize *__restrict__ uext, const fieldSize *__restrict__ vext, const fieldSize *__restrict__ wext, const fieldSize *__restrict__ Text, const fieldSize *__restrict__ T2ext, const int pcount, Particle *__restrict__ particles) {
 	int index_start = 0, index_stride = 1;
 #ifdef BUILD_CUDA
 	index_start = blockIdx.x * blockDim.x + threadIdx.x;
@@ -101,9 +101,9 @@ GLOBAL void GPUFieldInterpolateLinear(const int nx, const int ny, const double d
 
 // Setup shared memory for Z and ZZ
 #ifdef BUILD_CUDA
-		extern SHARED double shared[];
+		extern SHARED float shared[];
 
-		double *dzu = shared, *dzw = &shared[nnz + 1];
+		float *dzu = shared, *dzw = &shared[nnz + 1];
 		if(threadIdx.x == 0) {
 			for(int i = 1; i < nnz; i++) {
 				dzu[i] = zz[i] - zz[i - 1];
@@ -117,10 +117,10 @@ GLOBAL void GPUFieldInterpolateLinear(const int nx, const int ny, const double d
 		}
 		__syncthreads();
 #else
-		const double *zShared = z;
-		const double *zzShared = zz;
+		const float *zShared = z;
+		const float *zzShared = zz;
 
-		double dzu[nnz + 1], dzw[nnz + 1];
+		float dzu[nnz + 1], dzw[nnz + 1];
 		for(int i = 1; i < nnz; i++) {
 			dzu[i] = zz[i] - zz[i - 1];
 			dzw[i] = z[i] - z[i - 1];
@@ -132,12 +132,12 @@ GLOBAL void GPUFieldInterpolateLinear(const int nx, const int ny, const double d
 		dzw[nnz] = dzw[nnz - 1];
 #endif
 
-		const double xPos = particles[idx].xp[0];
-		const double yPos = particles[idx].xp[1];
-		const double zPos = particles[idx].xp[2];
+		const float xPos = particles[idx].xp[0];
+		const float yPos = particles[idx].xp[1];
+		const float zPos = particles[idx].xp[2];
 
-		const int ipt = floor(xPos / dx) + 1;
-		const int jpt = floor(yPos / dy) + 1;
+		const int ipt = floorf(xPos / dx) + 1;
+		const int jpt = floorf(yPos / dy) + 1;
 
 		int kpt = 0, kwpt = 0;
 		for(int j = 0; j < nnz; j++) {
@@ -145,9 +145,8 @@ GLOBAL void GPUFieldInterpolateLinear(const int nx, const int ny, const double d
 			if(z[j] < zPos) kwpt = j;
 		}
 
-
-		double xUF = 0.0, yUF = 0.0, zUF = 0.0;
-		double Tf = 0.0, qinf = 0.0;
+		float xUF = 0.0f, yUF = 0.0f, zUF = 0.0f;
+		float Tf = 0.0f, qinf = 0.0f;
 
 #pragma unroll
 		for(int i = 0; i < 2; i++) {
@@ -160,32 +159,32 @@ GLOBAL void GPUFieldInterpolateLinear(const int nx, const int ny, const double d
 					const int izuv = k + kpt;
 					const int izw = k + kwpt;
 
-					const double xv = dx * (i + ipt - 1);
-					const double yv = dy * (j + jpt - 1);
+					const float xv = dx * (i + ipt - 1);
+					const float yv = dy * (j + jpt - 1);
 
-					const double wtx = 1.0 - (std::abs(xPos - xv) / dx);
-					const double wty = 1.0 - (std::abs(yPos - yv) / dy);
-					const double wtz = 1.0 - (std::abs(zPos - zz[izuv]) / dzu[kpt + 1]);
-					const double wtzw = 1.0 - (std::abs(zPos - z[izw]) / dzw[kwpt + 1]);
+					const float wtx = 1.0f - (fabs(xPos - xv) / dx);
+					const float wty = 1.0f - (fabs(yPos - yv) / dy);
+					const float wtz = 1.0f - (fabs(zPos - zz[izuv]) / dzu[kpt + 1]);
+					const float wtzw = 1.0f - (fabs(zPos - z[izw]) / dzw[kwpt + 1]);
 					xUF += uext[(ix + 1) + (iy + 1) * nx + izuv * ny * nx] * wtx * wty * wtz;
 					yUF += vext[(ix + 1) + (iy + 1) * nx + izuv * ny * nx] * wtx * wty * wtz;
 					zUF += wext[(ix + 1) + (iy + 1) * nx + izw * ny * nx] * wtx * wty * wtzw;
 					Tf += Text[(ix + 1) + (iy + 1) * nx + izuv * ny * nx] * wtx * wty * wtz;
 					qinf += T2ext[(ix + 1) + (iy + 1) * nx + izuv * ny * nx] * wtx * wty * wtz;
 
-                                        if (kpt == 0){
-					xUF = uext[(ix + 1) + (iy + 1) * nx + 1 * ny * nx];
-					yUF = vext[(ix + 1) + (iy + 1) * nx + 1 * ny * nx];
-					Tf = Text[(ix + 1) + (iy + 1) * nx + 1 * ny * nx];
-					qinf = T2ext[(ix + 1) + (iy + 1) * nx + 1 * ny * nx];
-                                         }
+					if(kpt == 0) {
+						xUF = uext[(ix + 1) + (iy + 1) * nx + 1 * ny * nx];
+						yUF = vext[(ix + 1) + (iy + 1) * nx + 1 * ny * nx];
+						Tf = Text[(ix + 1) + (iy + 1) * nx + 1 * ny * nx];
+						qinf = T2ext[(ix + 1) + (iy + 1) * nx + 1 * ny * nx];
+					}
 
-                                        if (kpt == nnz-2){
-					xUF = uext[(ix + 1) + (iy + 1) * nx + (nnz-2) * ny * nx];
-					yUF = vext[(ix + 1) + (iy + 1) * nx + (nnz-2) * ny * nx];
-					Tf = Text[(ix + 1) + (iy + 1) * nx + (nnz-2) * ny * nx];
-					qinf = T2ext[(ix + 1) + (iy + 1) * nx + (nnz-2) * ny * nx];
-                                         }
+					if(kpt == nnz - 2) {
+						xUF = uext[(ix + 1) + (iy + 1) * nx + (nnz - 2) * ny * nx];
+						yUF = vext[(ix + 1) + (iy + 1) * nx + (nnz - 2) * ny * nx];
+						Tf = Text[(ix + 1) + (iy + 1) * nx + (nnz - 2) * ny * nx];
+						qinf = T2ext[(ix + 1) + (iy + 1) * nx + (nnz - 2) * ny * nx];
+					}
 				}
 			}
 		}
@@ -198,7 +197,7 @@ GLOBAL void GPUFieldInterpolateLinear(const int nx, const int ny, const double d
 	}
 }
 
-GLOBAL void GPUFieldInterpolate(const int nx, const int ny, const double dx, const double dy, const int nnz, const double *__restrict__ z, const double *__restrict__ zz, const fieldSize *__restrict__ uext, const fieldSize *__restrict__ vext, const fieldSize *__restrict__ wext, const fieldSize *__restrict__ Text, const fieldSize *__restrict__ T2ext, const int pcount, Particle *__restrict__ particles) {
+GLOBAL void GPUFieldInterpolate(const int nx, const int ny, const float dx, const float dy, const int nnz, const float *__restrict__ z, const float *__restrict__ zz, const fieldSize *__restrict__ uext, const fieldSize *__restrict__ vext, const fieldSize *__restrict__ wext, const fieldSize *__restrict__ Text, const fieldSize *__restrict__ T2ext, const int pcount, Particle *__restrict__ particles) {
 	int index_start = 0, index_stride = 1;
 #ifdef BUILD_CUDA
 	index_start = blockIdx.x * blockDim.x + threadIdx.x;
@@ -208,10 +207,10 @@ GLOBAL void GPUFieldInterpolate(const int nx, const int ny, const double dx, con
 	for(int idx = index_start; idx < pcount; idx += index_stride) {
 
 #ifdef BUILD_CUDA
-		extern SHARED double shared[];
+		extern SHARED float shared[];
 
 		// Shared memory for Z and ZZ
-		double *zShared = shared, *zzShared = &shared[nnz];
+		float *zShared = shared, *zzShared = &shared[nnz];
 		if(threadIdx.x == 0) {
 			for(int i = 0; i < nnz; i++) {
 				zShared[i] = z[i];
@@ -255,20 +254,20 @@ GLOBAL void GPUFieldInterpolate(const int nx, const int ny, const double dx, con
 		kwpts[1] = kwpts[2] - 1;
 		kwpts[0] = kwpts[1] - 1;
 
-		double wt[4][6] = {
+		float wt[4][6] = {
 			{0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
 			{0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
 			{0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
 			{0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
 		};
 
-		double dxvec[2] = {dx, dy};
+		float dxvec[2] = {(float)dx, (float)dy};
 		for(int iz = 0; iz < 2; iz++) {
 			for(int j = 0; j < 6; j++) {
-				double xjval = dxvec[iz] * (ijpts[iz * 6 + j] - 1);
-				double pj = 1.0;
+				float xjval = dxvec[iz] * (ijpts[iz * 6 + j] - 1);
+				float pj = 1.0;
 				for(int k = 0; k < 6; k++) {
-					double xkval = dxvec[iz] * (ijpts[iz * 6 + k] - 1);
+					float xkval = dxvec[iz] * (ijpts[iz * 6 + k] - 1);
 					if(j != k) {
 						pj = pj * (particles[idx].xp[iz] - xkval) / (xjval - xkval);
 					}
@@ -324,10 +323,10 @@ GLOBAL void GPUFieldInterpolate(const int nx, const int ny, const double dx, con
 		}
 
 		for(int j = first; j < last; j++) {
-			double xjval = zzShared[kuvpts[j]];
-			double pj = 1.0;
+			float xjval = zzShared[kuvpts[j]];
+			float pj = 1.0;
 			for(int k = first; k < last; k++) {
-				double xkval = zzShared[kuvpts[k]];
+				float xkval = zzShared[kuvpts[k]];
 				if(j != k) {
 					pj = pj * (particles[idx].xp[2] - xkval) / (xjval - xkval);
 				}
@@ -371,10 +370,10 @@ GLOBAL void GPUFieldInterpolate(const int nx, const int ny, const double dx, con
 		}
 
 		for(int j = first; j < last; j++) {
-			double xjval = zShared[kwpts[j]];
-			double pj = 1.0;
+			float xjval = zShared[kwpts[j]];
+			float pj = 1.0;
 			for(int k = first; k < last; k++) {
-				double xkval = zShared[kwpts[k]];
+				float xkval = zShared[kwpts[k]];
 				if(j != k) {
 					pj = pj * (particles[idx].xp[2] - xkval) / (xjval - xkval);
 				}
@@ -382,12 +381,12 @@ GLOBAL void GPUFieldInterpolate(const int nx, const int ny, const double dx, con
 			wt[3][j] = pj;
 		}
 
-		particles[idx].uf[0] = 0.0;
-		particles[idx].uf[1] = 0.0;
-		particles[idx].uf[2] = 0.0;
+		particles[idx].uf[0] = 0.0f;
+		particles[idx].uf[1] = 0.0f;
+		particles[idx].uf[2] = 0.0f;
 
-		particles[idx].Tf = 0.0;
-		particles[idx].qinf = 0.0;
+		particles[idx].Tf = 0.0f;
+		particles[idx].qinf = 0.0f;
 		for(int k = 0; k < 6; k++) {
 			for(int j = 0; j < 6; j++) {
 				for(int i = 0; i < 6; i++) {
@@ -406,7 +405,7 @@ GLOBAL void GPUFieldInterpolate(const int nx, const int ny, const double dx, con
 	}
 }
 
-GLOBAL void GPUUpdateParticles(const int it, const int istage, const double dt, const int pcount, Particle *__restrict__ particles) {
+GLOBAL void GPUUpdateParticles(const int it, const int istage, const float dt, const int pcount, Particle *__restrict__ particles) {
 	int index_start = 0, index_stride = 1;
 #ifdef BUILD_CUDA
 	index_start = blockIdx.x * blockDim.x + threadIdx.x;
@@ -416,12 +415,12 @@ GLOBAL void GPUUpdateParticles(const int it, const int istage, const double dt, 
 	for(int idx = index_start; idx < pcount; idx += index_stride) {
 
 #ifdef BUILD_CUDA
-		SHARED double pi, pi2, m_s, CpaCpp, Lv, pPra, pSc, zetas[3], gama[3], g[3], dtZ, dtG;
+		SHARED float pi, pi2, m_s, CpaCpp, Lv, pPra, pSc, zetas[3], gama[3], g[3], dtZ, dtG;
 
 		if(threadIdx.x == 0) {
-			pi = 4.0 * atan(1.0);
+			pi = 4.0 * atanf(1.0);
 			pi2 = 2.0 * pi;
-			m_s = cParams.Sal / 1000.0 * 4.0 / 3.0 * pi * pow(cParams.radius_mass, 3) * cParams.rhow;
+			m_s = cParams.Sal / 1000.0 * 4.0 / 3.0 * pi * powf(cParams.radius_mass, 3) * cParams.rhow;
 
 			CpaCpp = cParams.Cpa / cParams.Cpp;
 
@@ -436,29 +435,29 @@ GLOBAL void GPUUpdateParticles(const int it, const int istage, const double dt, 
 			g[2] = cParams.part_grav;
 			Lv = (25.0 - 0.02274 * 26.0) * 100000;
 
-			pPra = pow(cParams.Pra, 1.0 / 3.0);
-			pSc = pow(cParams.Sc, 1.0 / 3.0);
+			pPra = powf(cParams.Pra, 1.0 / 3.0);
+			pSc = powf(cParams.Sc, 1.0 / 3.0);
 
 			dtZ = dt * zetas[istage];
 			dtG = dt * gama[istage];
 		}
 		__syncthreads();
 #else
-		const double pi = 4.0 * atan(1.0);
-		const double pi2 = 2.0 * pi;
-		const double m_s = cParams.Sal / 1000.0 * 4.0 / 3.0 * pi * pow(cParams.radius_mass, 3) * cParams.rhow;
+		const float pi = 4.0 * atan(1.0);
+		const float pi2 = 2.0 * pi;
+		const float m_s = cParams.Sal / 1000.0 * 4.0 / 3.0 * pi * powf(cParams.radius_mass, 3) * cParams.rhow;
 
-		const double CpaCpp = cParams.Cpa / cParams.Cpp;
+		const float CpaCpp = cParams.Cpa / cParams.Cpp;
 
-		const double zetas[3] = {0.0, -17.0 / 60.0, -5.0 / 12.0};
-		const double gama[3] = {8.0 / 15.0, 5.0 / 12.0, 3.0 / 4.0};
-		const double g[3] = {0.0, 0.0, cParams.part_grav};
-		const double Lv = (25.0 - 0.02274 * 26.0) * 100000;
-		const double pPra = pow(cParams.Pra, 1.0 / 3.0);
-		const double pSc = pow(cParams.Sc, 1.0 / 3.0);
+		const float zetas[3] = {0.0, -17.0 / 60.0, -5.0 / 12.0};
+		const float gama[3] = {8.0 / 15.0, 5.0 / 12.0, 3.0 / 4.0};
+		const float g[3] = {0.0, 0.0, cParams.part_grav};
+		const float Lv = (25.0 - 0.02274 * 26.0) * 100000;
+		const float pPra = powf(cParams.Pra, 1.0 / 3.0);
+		const float pSc = powf(cParams.Sc, 1.0 / 3.0);
 
-		const double dtZ = dt * zetas[istage];
-		const double dtG = dt * gama[istage];
+		const float dtZ = dt * zetas[istage];
+		const float dtG = dt * gama[istage];
 #endif
 
 		if(it == 1) {
@@ -468,36 +467,36 @@ GLOBAL void GPUUpdateParticles(const int it, const int istage, const double dt, 
 			particles[idx].Tp = particles[idx].Tf;
 		}
 
-		double diff[3];
+		float diff[3];
 		for(int j = 0; j < 3; j++) {
 			diff[j] = particles[idx].vp[j] - particles[idx].uf[j];
 		}
-		double diffnorm = sqrt(diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]);
-		double Rep = 2.0 * particles[idx].radius * diffnorm / cParams.nuf;
-		double Volp = pi2 * 2.0 / 3.0 * (particles[idx].radius * particles[idx].radius * particles[idx].radius);
-		double rhop = (m_s + Volp * cParams.rhow) / Volp;
-		double taup_i = 18.0 * cParams.rhoa * cParams.nuf / rhop / ((2.0 * particles[idx].radius) * (2.0 * particles[idx].radius));
+		float diffnorm = sqrtf(diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]);
+		float Rep = 2.0 * particles[idx].radius * diffnorm / cParams.nuf;
+		float Volp = pi2 * 2.0 / 3.0 * (particles[idx].radius * particles[idx].radius * particles[idx].radius);
+		float rhop = (m_s + Volp * cParams.rhow) / Volp;
+		float taup_i = 18.0 * cParams.rhoa * cParams.nuf / rhop / ((2.0 * particles[idx].radius) * (2.0 * particles[idx].radius));
 
-		double corrfac = 1.0 + 0.15 * pow(Rep, 0.687);
-		double Nup = 2.0 + 0.6 * pow(Rep, 0.5) * pPra;
-		double Shp = 2.0 + 0.6 * pow(Rep, 0.5) * pSc;
+		float corrfac = 1.0 + 0.15 * powf(Rep, 0.687);
+		float Nup = 2.0 + 0.6 * powf(Rep, 0.5) * pPra;
+		float Shp = 2.0 + 0.6 * powf(Rep, 0.5) * pSc;
 
-		double TfC = particles[idx].Tf - 273.15;
-		double einf = 610.94 * exp(17.6257 * TfC / (TfC + 243.04));
-		double Eff_C = 2.0 * cParams.Mw * cParams.Gam / (cParams.Ru * cParams.rhow * particles[idx].radius * particles[idx].Tp);
-		double Eff_S = cParams.Ion * cParams.Os * m_s * cParams.Mw / cParams.Ms / (Volp * rhop - m_s);
-		double estar = einf * exp(cParams.Mw * Lv / cParams.Ru * (1.0 / particles[idx].Tf - 1.0 / particles[idx].Tp) + Eff_C - Eff_S);
+		float TfC = particles[idx].Tf - 273.15;
+		float einf = 610.94 * expf(17.6257 * TfC / (TfC + 243.04));
+		float Eff_C = 2.0 * cParams.Mw * cParams.Gam / (cParams.Ru * cParams.rhow * particles[idx].radius * particles[idx].Tp);
+		float Eff_S = cParams.Ion * cParams.Os * m_s * cParams.Mw / cParams.Ms / (Volp * rhop - m_s);
+		float estar = einf * expf(cParams.Mw * Lv / cParams.Ru * (1.0 / particles[idx].Tf - 1.0 / particles[idx].Tp) + Eff_C - Eff_S);
 		particles[idx].qstar = cParams.Mw / cParams.Ru * estar / particles[idx].Tp / cParams.rhoa;
 
-		double xtmp[3], vtmp[3];
+		float xtmp[3], vtmp[3];
 		for(int j = 0; j < 3; j++) {
 			xtmp[j] = particles[idx].xp[j] + dtZ * particles[idx].xrhs[j];
 			vtmp[j] = particles[idx].vp[j] + dtZ * particles[idx].vrhs[j];
 		}
 
-		double Tptmp = particles[idx].Tp + dtZ * particles[idx].Tprhs_s;
+		float Tptmp = particles[idx].Tp + dtZ * particles[idx].Tprhs_s;
 		Tptmp += dtZ * particles[idx].Tprhs_L;
-		double radiustmp = particles[idx].radius + dtZ * particles[idx].radrhs;
+		float radiustmp = particles[idx].radius + dtZ * particles[idx].radrhs;
 
 		for(int j = 0; j < 3; j++) {
 			particles[idx].xrhs[j] = particles[idx].vp[j];
@@ -521,7 +520,7 @@ GLOBAL void GPUUpdateParticles(const int it, const int istage, const double dt, 
 	}
 }
 
-GLOBAL void GPUUpdateNonperiodic(const double grid_width, const int pcount, Particle *__restrict__ particles) {
+GLOBAL void GPUUpdateNonperiodic(const float grid_width, const int pcount, Particle *__restrict__ particles) {
 	int index_start = 0, index_stride = 1;
 #ifdef BUILD_CUDA
 	index_start = blockIdx.x * blockDim.x + threadIdx.x;
@@ -529,11 +528,11 @@ GLOBAL void GPUUpdateNonperiodic(const double grid_width, const int pcount, Part
 #endif
 
 	for(int idx = index_start; idx < pcount; idx += index_stride) {
-		const double radius = particles[idx].radius;
-		const double zPos = particles[idx].xp[2];
+		const float radius = particles[idx].radius;
+		const float zPos = particles[idx].xp[2];
 
-		const double top = grid_width - radius;
-		const double bot = 0.0 + radius;
+		const float top = grid_width - radius;
+		const float bot = 0.0 + radius;
 
 		if(zPos > top) {
 			particles[idx].xp[2] = top - (zPos - top);
@@ -545,7 +544,7 @@ GLOBAL void GPUUpdateNonperiodic(const double grid_width, const int pcount, Part
 	}
 }
 
-GLOBAL void GPUUpdatePeriodic(const double grid_width, const double grid_height, const int pcount, Particle *__restrict__ particles) {
+GLOBAL void GPUUpdatePeriodic(const float grid_width, const float grid_height, const int pcount, Particle *__restrict__ particles) {
 	int index_start = 0, index_stride = 1;
 #ifdef BUILD_CUDA
 	index_start = blockIdx.x * blockDim.x + threadIdx.x;
@@ -553,8 +552,8 @@ GLOBAL void GPUUpdatePeriodic(const double grid_width, const double grid_height,
 #endif
 
 	for(int idx = index_start; idx < pcount; idx += index_stride) {
-		const double xPos = particles[idx].xp[0];
-		const double yPos = particles[idx].xp[1];
+		const float xPos = particles[idx].xp[0];
+		const float yPos = particles[idx].xp[1];
 
 		if(xPos > grid_width) {
 			particles[idx].xp[0] -= grid_width;
@@ -570,9 +569,9 @@ GLOBAL void GPUUpdatePeriodic(const double grid_width, const double grid_height,
 	}
 }
 
-void GPUCalculateStatistics(const int nnz, const double *__restrict__ z, double *__restrict__ partcount_t, double *__restrict__ vpsum_t, double *__restrict__ vpsqrsum_t, double *__restrict__ rpsum_t, double *__restrict__ tpsum_t, double *__restrict__ tfsum_t, double *__restrict__ qfsum_t, double *__restrict__ qstarsum_t,  const int pcount, Particle *__restrict__ particles, double &radmean ) {
+void GPUCalculateStatistics(const int nnz, const float *__restrict__ z, double *__restrict__ partcount_t, double *__restrict__ vpsum_t, double *__restrict__ vpsqrsum_t, double *__restrict__ rpsum_t, double *__restrict__ tpsum_t, double *__restrict__ tfsum_t, double *__restrict__ qfsum_t, double *__restrict__ qstarsum_t, const int pcount, Particle *__restrict__ particles, double &radmean) {
 
-        double radsum = 0.0;
+	double radsum = 0.0;
 	for(int i = 0; i < pcount; i++) {
 		int kpt = 0;
 		for(; kpt < nnz; kpt++) {
@@ -592,16 +591,16 @@ void GPUCalculateStatistics(const int nnz, const double *__restrict__ z, double 
 		vpsqrsum_t[kpt * 3 + 1] += (particles[i].vp[1] * particles[i].vp[1]);
 		vpsqrsum_t[kpt * 3 + 2] += (particles[i].vp[2] * particles[i].vp[2]);
 
-                rpsum_t[kpt] += particles[i].radius;
-                tpsum_t[kpt] += particles[i].Tp;
-                tfsum_t[kpt] += particles[i].Tf;
-                qfsum_t[kpt] += particles[i].qinf;
-                qstarsum_t[kpt] += particles[i].qstar;
+		rpsum_t[kpt] += particles[i].radius;
+		tpsum_t[kpt] += particles[i].Tp;
+		tfsum_t[kpt] += particles[i].Tf;
+		qfsum_t[kpt] += particles[i].qinf;
+		qstarsum_t[kpt] += particles[i].qstar;
 
-                radsum += particles[i].radius;
+		radsum += particles[i].radius;
 	}
 
-                radmean = radsum/pcount;
+	radmean = radsum / pcount;
 }
 
 const int random_NTAB = 32;
@@ -746,16 +745,20 @@ extern "C" GPU *NewGPU(const int particles, const int width, const int height, c
 		gpuErrchk(cudaMalloc((void **)&dev->Qext, sizeof(fieldSize) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth));
 		gpuErrchk(cudaMallocHost((void **)&retVal->hQext, sizeof(fieldSize) * retVal->GridWidth * retVal->GridHeight * retVal->GridDepth));
 
-		gpuErrchk(cudaMalloc((void **)&dev->Z, sizeof(double) * retVal->GridDepth));
-		gpuErrchk(cudaMallocHost((void **)&retVal->hZ, sizeof(double) * retVal->GridDepth));
-		memcpy(retVal->hZ, z, sizeof(double) * retVal->GridDepth);
+		gpuErrchk(cudaMalloc((void **)&dev->Z, sizeof(float) * retVal->GridDepth));
+		gpuErrchk(cudaMallocHost((void **)&retVal->hZ, sizeof(float) * retVal->GridDepth));
+		for(int j = 0; j < retVal->GridDepth; j++) {
+			retVal->hZ[j] = (float)z[j];
+		}
 
-		gpuErrchk(cudaMalloc((void **)&dev->ZZ, sizeof(double) * retVal->GridDepth));
-		gpuErrchk(cudaMallocHost((void **)&retVal->hZZ, sizeof(double) * retVal->GridDepth));
-		memcpy(retVal->hZZ, zz, sizeof(double) * retVal->GridDepth);
+		gpuErrchk(cudaMalloc((void **)&dev->ZZ, sizeof(float) * retVal->GridDepth));
+		gpuErrchk(cudaMallocHost((void **)&retVal->hZZ, sizeof(float) * retVal->GridDepth));
+		for(int j = 0; j < retVal->GridDepth; j++) {
+			retVal->hZZ[j] = (float)zz[j];
+		}
 
-		gpuErrchk(cudaMemcpyAsync(dev->Z, z, sizeof(double) * retVal->GridDepth, cudaMemcpyHostToDevice, dev->Stream));
-		gpuErrchk(cudaMemcpyAsync(dev->ZZ, zz, sizeof(double) * retVal->GridDepth, cudaMemcpyHostToDevice, dev->Stream));
+		gpuErrchk(cudaMemcpyAsync(dev->Z, z, sizeof(float) * retVal->GridDepth, cudaMemcpyHostToDevice, dev->Stream));
+		gpuErrchk(cudaMemcpyAsync(dev->ZZ, zz, sizeof(float) * retVal->GridDepth, cudaMemcpyHostToDevice, dev->Stream));
 	}
 
 #ifdef BUILD_PERFORMANCE_PROFILE
@@ -909,9 +912,9 @@ extern "C" void ParticleInterpolate(GPU *gpu, const double dx, const double dy) 
 
 		const unsigned int blocks = std::ceil(gpu->pCount / (double)CUDA_BLOCK_THREADS);
 		if(gpu->mParameters.LinearInterpolation == 1) {
-			GPUFieldInterpolateLinear<<<blocks, CUDA_BLOCK_THREADS, ((gpu->GridDepth * 2) + 2) * sizeof(double), dev->Stream>>>(gpu->GridWidth, gpu->GridHeight, dx, dy, gpu->GridDepth, dev->Z, dev->ZZ, dev->Uext, dev->Vext, dev->Wext, dev->Text, dev->Qext, dev->ParticleCount, dev->Particles);
+			GPUFieldInterpolateLinear<<<blocks, CUDA_BLOCK_THREADS, ((gpu->GridDepth * 2) + 2) * sizeof(float), dev->Stream>>>(gpu->GridWidth, gpu->GridHeight, dx, dy, gpu->GridDepth, dev->Z, dev->ZZ, dev->Uext, dev->Vext, dev->Wext, dev->Text, dev->Qext, dev->ParticleCount, dev->Particles);
 		} else {
-			GPUFieldInterpolate<<<blocks, CUDA_BLOCK_THREADS, gpu->GridDepth * 2 * sizeof(double), dev->Stream>>>(gpu->GridWidth, gpu->GridHeight, dx, dy, gpu->GridDepth, dev->Z, dev->ZZ, dev->Uext, dev->Vext, dev->Wext, dev->Text, dev->Qext, dev->ParticleCount, dev->Particles);
+			GPUFieldInterpolate<<<blocks, CUDA_BLOCK_THREADS, gpu->GridDepth * 2 * sizeof(float), dev->Stream>>>(gpu->GridWidth, gpu->GridHeight, dx, dy, gpu->GridDepth, dev->Z, dev->ZZ, dev->Uext, dev->Vext, dev->Wext, dev->Text, dev->Qext, dev->ParticleCount, dev->Particles);
 		}
 		gpuErrchk(cudaPeekAtLastError());
 	}
@@ -1049,7 +1052,7 @@ extern "C" void ParticleCalculateStatistics(GPU *gpu, const double dx, const dou
 #ifdef BUILD_CUDA
 	ParticleDownload(gpu);
 #endif
-	GPUCalculateStatistics(gpu->GridDepth, gpu->hZ, gpu->hPartCount, gpu->hVPSum, gpu->hVPSumSQ, gpu->hRPSum, gpu->hTPSum, gpu->hTFSum, gpu-> hQFSum, gpu-> hQSTARSum, gpu->pCount, gpu->hParticles, gpu->radmean);
+	GPUCalculateStatistics(gpu->GridDepth, gpu->hZ, gpu->hPartCount, gpu->hVPSum, gpu->hVPSumSQ, gpu->hRPSum, gpu->hTPSum, gpu->hTFSum, gpu->hQFSum, gpu->hQSTARSum, gpu->pCount, gpu->hParticles, gpu->radmean);
 
 #ifdef BUILD_PERFORMANCE_PROFILE
 #ifdef BUILD_CUDA
@@ -1132,14 +1135,14 @@ void ParticleFillStatistics(GPU *gpu, double *partCount, double *vSum, double *v
 		vSumSQ[i * 3 + 1] = gpu->hVPSumSQ[i * 3 + 1];
 		vSumSQ[i * 3 + 2] = gpu->hVPSumSQ[i * 3 + 2];
 
-                tSum[i] = gpu->hTPSum[i];
-                rSum[i] = gpu->hRPSum[i];
+		tSum[i] = gpu->hTPSum[i];
+		rSum[i] = gpu->hRPSum[i];
 
-                tfSum[i] = gpu->hTFSum[i];
-                qfSum[i] = gpu->hQFSum[i];
-                qstarSum[i] = gpu->hQSTARSum[i];
- 	}
-                single_stats[0] = gpu->radmean;
+		tfSum[i] = gpu->hTFSum[i];
+		qfSum[i] = gpu->hQFSum[i];
+		qstarSum[i] = gpu->hQSTARSum[i];
+	}
+	single_stats[0] = gpu->radmean;
 }
 
 // Particle Functions

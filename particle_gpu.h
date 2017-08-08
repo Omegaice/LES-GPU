@@ -13,8 +13,8 @@ typedef float fieldSize;
 
 struct Particle {
 	int pidx, procidx;
-	double vp[3], xp[3], uf[3], xrhs[3], vrhs[3];
-	double Tp, Tprhs_s, Tprhs_L, Tf, radius, radrhs, qinf, qstar;
+	float vp[3], xp[3], uf[3], xrhs[3], vrhs[3];
+	float Tp, Tprhs_s, Tprhs_L, Tf, radius, radrhs, qinf, qstar;
 
 	friend std::ostream &operator<<(std::ostream &stream, const Particle &p);
 };
@@ -25,13 +25,13 @@ struct Parameters {
 	// Material Properties
 
 	// Air Properties
-	double rhoa, nuf, Cpa, Pra, Sc;
+	float rhoa, nuf, Cpa, Pra, Sc;
 
 	// Particle Properties
-	double rhow, part_grav, Cpp, Mw, Ru, Ms, Sal, Gam, Ion, Os;
+	float rhow, part_grav, Cpp, Mw, Ru, Ms, Sal, Gam, Ion, Os;
 
 	// Particle Initial Conditions
-	double radius_mass;
+	float radius_mass;
 };
 
 struct Device {
@@ -42,7 +42,7 @@ struct Device {
 
 	Particle *Particles;
 	fieldSize *Uext, *Vext, *Wext, *Text, *Qext;
-	double *Z, *ZZ;
+	float *Z, *ZZ;
 };
 
 struct GPU {
@@ -55,10 +55,10 @@ struct GPU {
 	double FieldWidth, FieldHeight, FieldDepth;
 
 	fieldSize *hUext, *hVext, *hWext, *hText, *hQext;
-	double *hZ, *hZZ;
+	float *hZ, *hZZ;
 
 	// Statistics
-        double *hPartCount, *hVPSum, *hVPSumSQ, *hRPSum, *hTPSum, *hTFSum, *hQFSum, *hQSTARSum, radmean;
+	double *hPartCount, *hVPSum, *hVPSumSQ, *hRPSum, *hTPSum, *hTFSum, *hQFSum, *hQSTARSum, radmean;
 
 	// GPU Memory
 	Device *mDevices;
