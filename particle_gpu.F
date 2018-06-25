@@ -539,10 +539,10 @@ contains
             use particles
             use particle_struct
             use class_Profiler
-
+            implicit none
             include 'mpif.h'
 
-            integer :: iz, istatus, ierr, dim, tdim
+            integer :: iz, istatus, ierr, dim, tdim,sdim
             real :: stat(1:nnz,34 + 5*nscl)
             real(8), allocatable :: pCount(:), vSum(:), vSumSQ(:)
             real(8), allocatable :: rSum(:),tSum(:),tf_Sum(:),qf_Sum(:),qstar_Sum(:)
@@ -554,6 +554,7 @@ contains
 
             dim = nnz + 2
             tdim = dim * 3
+            sdim = size(single_stats)
             allocate(pCount(dim), vSum(tdim), vSumSQ(tdim))
             allocate(rSum(dim),tSum(dim),tf_Sum(dim),qf_Sum(dim),qstar_Sum(dim))
 
@@ -571,6 +572,7 @@ contains
                     call mpi_send(tf_Sum,dim,mpi_real8,0,1,mpi_comm_world,ierr)
                     call mpi_send(qf_Sum,dim,mpi_real8,0,1,mpi_comm_world,ierr)
                     call mpi_send(qstar_Sum,dim,mpi_real8,0,1,mpi_comm_world,ierr)
+                    call mpi_send(single_stats,sdim,mpi_real8,0,1,mpi_comm_world,ierr)
                 end if
             else
                 if( myid .eq. 0 ) then
@@ -582,6 +584,7 @@ contains
                     call mpi_recv(tf_Sum,dim,mpi_real8,gpu_master_rank,1,mpi_comm_world,istatus,ierr)
                     call mpi_recv(qf_Sum,dim,mpi_real8,gpu_master_rank,1,mpi_comm_world,istatus,ierr)
                     call mpi_recv(qstar_Sum,dim,mpi_real8,gpu_master_rank,1,mpi_comm_world,istatus,ierr)
+                    call mpi_recv(single_stats,sdim,mpi_real8,gpu_master_rank,1,mpi_comm_world,istatus,ierr)
                 end if
             end if
 

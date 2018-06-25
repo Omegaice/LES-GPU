@@ -1399,13 +1399,13 @@ c ------------ buoyancy (with hydrostatic part)
 c
 
 !MODIFY BUOYANCY TERM TO INCLUDE HUMIDITY
-!         w_buy = batag*(t(ix,iy,1,iz)*weit1 +
-!     +                  t(ix,iy,1,izp1)*weit)
-
          w_buy = batag*(t(ix,iy,1,iz)*weit1 +
-     +                  t(ix,iy,1,izp1)*weit)*
-     +   (1.0+0.61*(weit1*t(ix,iy,2,iz) +
-     +    weit*t(ix,iy,2,izp1)))
+     +                  t(ix,iy,1,izp1)*weit)
+
+!         w_buy = batag*(t(ix,iy,1,iz)*weit1 +
+!     +                  t(ix,iy,1,izp1)*weit)*
+!     +   (1.0+0.61*(weit1*t(ix,iy,2,iz) +
+!     +    weit*t(ix,iy,2,izp1)))
 
 
 c
@@ -6820,6 +6820,7 @@ c
             call calculate_statistics(stat)
       end if
 #endif
+
       do iz=1,nnz
 c
       ups(iz)    = stat(iz,1)*fnxy
@@ -7401,7 +7402,7 @@ c
      +         wtle(mid,1),wtsb(mid,1),wt_tot(mid,1),
      +         englez(mid),eavg(mid), wabs,
      +         maxval(partcount(1:nnx,iys:iye,1)),
-     +         Rep_avg,phip,phiw,phiv
+     +         Rep_avg,single_stats(1:3)
 c    +         tps(mid,2), tps(mid,3),
 c    +         wtle(mid,2),wtsb(mid,2),wt_tot(mid,2),
 c    +         wtle(mid,3),wtsb(mid,3),wt_tot(mid,3)

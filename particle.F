@@ -35,7 +35,7 @@
         real :: Rep_avg,part_grav
         real :: vp_init(3),Tp_init,qf_init
 
-        real :: single_stats(1)
+        real :: single_stats(3)  !radmean,radmin,radmax
 
         real :: radius_init,rhow,nuf
         real :: CpaCpp,Cpa,Cpp,Pra,Sc,Mw,Ru,rhoa

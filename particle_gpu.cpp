@@ -570,9 +570,11 @@ GLOBAL void GPUUpdatePeriodic(const double grid_width, const double grid_height,
 	}
 }
 
-void GPUCalculateStatistics(const int nnz, const double *__restrict__ z, double *__restrict__ partcount_t, double *__restrict__ vpsum_t, double *__restrict__ vpsqrsum_t, double *__restrict__ rpsum_t, double *__restrict__ tpsum_t, double *__restrict__ tfsum_t, double *__restrict__ qfsum_t, double *__restrict__ qstarsum_t,  const int pcount, Particle *__restrict__ particles, double &radmean ) {
+void GPUCalculateStatistics(const int nnz, const double *__restrict__ z, double *__restrict__ partcount_t, double *__restrict__ vpsum_t, double *__restrict__ vpsqrsum_t, double *__restrict__ rpsum_t, double *__restrict__ tpsum_t, double *__restrict__ tfsum_t, double *__restrict__ qfsum_t, double *__restrict__ qstarsum_t,  const int pcount, Particle *__restrict__ particles, double &radmean , double &radmin, double &radmax) {
 
         double radsum = 0.0;
+        radmin = 1.0;
+        radmax = -1.0;
 	for(int i = 0; i < pcount; i++) {
 		int kpt = 0;
 		for(; kpt < nnz; kpt++) {
@@ -599,6 +601,14 @@ void GPUCalculateStatistics(const int nnz, const double *__restrict__ z, double 
                 qstarsum_t[kpt] += particles[i].qstar;
 
                 radsum += particles[i].radius;
+                
+                if(particles[i].radius > radmax){
+                  radmax = particles[i].radius;
+                }
+                if(particles[i].radius < radmin){
+                  radmin = particles[i].radius;
+                }
+
 	}
 
                 radmean = radsum/pcount;
@@ -1049,7 +1059,7 @@ extern "C" void ParticleCalculateStatistics(GPU *gpu, const double dx, const dou
 #ifdef BUILD_CUDA
 	ParticleDownload(gpu);
 #endif
-	GPUCalculateStatistics(gpu->GridDepth, gpu->hZ, gpu->hPartCount, gpu->hVPSum, gpu->hVPSumSQ, gpu->hRPSum, gpu->hTPSum, gpu->hTFSum, gpu-> hQFSum, gpu-> hQSTARSum, gpu->pCount, gpu->hParticles, gpu->radmean);
+	GPUCalculateStatistics(gpu->GridDepth, gpu->hZ, gpu->hPartCount, gpu->hVPSum, gpu->hVPSumSQ, gpu->hRPSum, gpu->hTPSum, gpu->hTFSum, gpu-> hQFSum, gpu-> hQSTARSum, gpu->pCount, gpu->hParticles, gpu->radmean, gpu->radmin, gpu-> radmax);
 
 #ifdef BUILD_PERFORMANCE_PROFILE
 #ifdef BUILD_CUDA
@@ -1140,6 +1150,8 @@ void ParticleFillStatistics(GPU *gpu, double *partCount, double *vSum, double *v
                 qstarSum[i] = gpu->hQSTARSum[i];
  	}
                 single_stats[0] = gpu->radmean;
+                single_stats[1] = gpu->radmin;
+                single_stats[2] = gpu->radmax;
 }
 
 // Particle Functions

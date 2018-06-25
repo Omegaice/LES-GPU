@@ -58,7 +58,7 @@ struct GPU {
 	double *hZ, *hZZ;
 
 	// Statistics
-        double *hPartCount, *hVPSum, *hVPSumSQ, *hRPSum, *hTPSum, *hTFSum, *hQFSum, *hQSTARSum, radmean;
+        double *hPartCount, *hVPSum, *hVPSumSQ, *hRPSum, *hTPSum, *hTFSum, *hQFSum, *hQSTARSum, radmean, radmin, radmax;
 
 	// GPU Memory
 	Device *mDevices;
