@@ -7393,20 +7393,13 @@ c
       wt_le  = wtle(iloc,1)
       krec = krec + 1
       mid = nnz/4
-      write(nhis1,6000) time,dt,utau,ziavg,amonin,holtop,
-     +         (tsfcc(1)-t_ref),uwsfc,vwsfc,divgmax, wt_min, wt_le,
+      write(nhis1,6000) time,dt,utau,
+     +         (tsfcc(1)-t_ref),uwsfc,vwsfc,
      +         ucfl, vcfl, wcfl, wtsfc(1),
-     +         ups(mid),vps(mid),wps(mid),tps(mid,1),
      +         uwle(mid),uwsb(mid),uw_tot(mid),
      +         vwle(mid),vwsb(mid),vw_tot(mid),
      +         wtle(mid,1),wtsb(mid,1),wt_tot(mid,1),
-     +         englez(mid),eavg(mid), wabs,
-     +         maxval(partcount(1:nnx,iys:iye,1)),
-     +         Rep_avg,single_stats(1:3)
-c    +         tps(mid,2), tps(mid,3),
-c    +         wtle(mid,2),wtsb(mid,2),wt_tot(mid,2),
-c    +         wtle(mid,3),wtsb(mid,3),wt_tot(mid,3)
-c 6000 format(5e17.8)
+     +         Rep_avg,single_stats(1:17)
  6000 format(37e17.8)
 c
 c -------------- write profile information

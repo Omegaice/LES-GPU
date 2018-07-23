@@ -10,6 +10,8 @@
 #ifndef BUILD_CUDA
 #include "stdlib.h"
 #include "string.h"
+#include "curand.h"
+#include "curand_kernel.h"
 #endif
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
@@ -521,26 +523,40 @@ GLOBAL void GPUUpdateParticles(const int it, const int istage, const double dt, 
 	}
 }
 
-GLOBAL void GPUUpdateNonperiodic(const double grid_width, const int pcount, Particle *__restrict__ particles) {
+GLOBAL void GPUUpdateNonperiodic(const double xMax, const double yMax, const double zMax, const int pcount, Particle *__restrict__ particles) {
 	int index_start = 0, index_stride = 1;
 #ifdef BUILD_CUDA
 	index_start = blockIdx.x * blockDim.x + threadIdx.x;
 	index_stride = blockDim.x * gridDim.x;
 #endif
+        const double xMin = 0.0;
+        const double yMin = 0.0;
+        const double zMin = 0.0;
 
 	for(int idx = index_start; idx < pcount; idx += index_stride) {
 		const double radius = particles[idx].radius;
 		const double zPos = particles[idx].xp[2];
 
-		const double top = grid_width - radius;
-		const double bot = 0.0 + radius;
+		//const double top = zMax - radius;
+		//const double bot = 0.0 + radius;
+		const double top = zMax - 0.2;
+		const double bot = 0.0 + 0.2;
 
 		if(zPos > top) {
 			particles[idx].xp[2] = top - (zPos - top);
 			particles[idx].vp[2] = -particles[idx].vp[2];
+			
+			//particles[idx].xp[0] = xMax/2.0;
+                        //particles[idx].xp[1] = yMax/2.0;
+                        //particles[idx].xp[2] = zMax/2.0;
+                        
 		} else if(zPos < bot) {
 			particles[idx].xp[2] = bot + (bot - zPos);
 			particles[idx].vp[2] = -particles[idx].vp[2];
+			
+			//particles[idx].xp[0] = xMax/2.0;
+                        //particles[idx].xp[1] = yMax/2.0;
+                        //particles[idx].xp[2] = zMax/2.0;
 		}
 	}
 }
@@ -570,11 +586,11 @@ GLOBAL void GPUUpdatePeriodic(const double grid_width, const double grid_height,
 	}
 }
 
-void GPUCalculateStatistics(const int nnz, const double *__restrict__ z, double *__restrict__ partcount_t, double *__restrict__ vpsum_t, double *__restrict__ vpsqrsum_t, double *__restrict__ rpsum_t, double *__restrict__ tpsum_t, double *__restrict__ tfsum_t, double *__restrict__ qfsum_t, double *__restrict__ qstarsum_t,  const int pcount, Particle *__restrict__ particles, double &radmean , double &radmin, double &radmax) {
+void GPUCalculateStatistics(const int nnz, const double *__restrict__ z, double *__restrict__ partcount_t, double *__restrict__ vpsum_t, double *__restrict__ vpsqrsum_t, double *__restrict__ rpsum_t, double *__restrict__ tpsum_t, double *__restrict__ tfsum_t, double *__restrict__ qfsum_t, double *__restrict__ qstarsum_t,  const int pcount, Particle *__restrict__ particles, double *part_stats) {
 
         double radsum = 0.0;
-        radmin = 1.0;
-        radmax = -1.0;
+        double radmin = 1.0;
+        double radmax = -1.0;
 	for(int i = 0; i < pcount; i++) {
 		int kpt = 0;
 		for(; kpt < nnz; kpt++) {
@@ -601,6 +617,8 @@ void GPUCalculateStatistics(const int nnz, const double *__restrict__ z, double 
                 qstarsum_t[kpt] += particles[i].qstar;
 
                 radsum += particles[i].radius;
+
+                //part_stats = radmean, radmin, radmax, xp1,xp2,xp3,vp1,vp2,vp3,uf1,uf2,uf3,rad1,Tp1,Tf1,qinf,qstar;
                 
                 if(particles[i].radius > radmax){
                   radmax = particles[i].radius;
@@ -609,9 +627,28 @@ void GPUCalculateStatistics(const int nnz, const double *__restrict__ z, double 
                   radmin = particles[i].radius;
                 }
 
+                if(i == 1){
+                  part_stats[3] = particles[i].xp[0];
+                  part_stats[4] = particles[i].xp[1];
+                  part_stats[5] = particles[i].xp[2];
+                  part_stats[6] = particles[i].vp[0];
+                  part_stats[7] = particles[i].vp[1];
+                  part_stats[8] = particles[i].vp[2];
+                  part_stats[9] = particles[i].uf[0];
+                  part_stats[10] = particles[i].uf[1];
+                  part_stats[11] = particles[i].uf[2];
+                  part_stats[12] = particles[i].radius;
+                  part_stats[13] = particles[i].Tp;
+                  part_stats[14] = particles[i].Tf;
+                  part_stats[15] = particles[i].qinf;
+                  part_stats[16] = particles[i].qstar;
+                 }
+
 	}
 
-                radmean = radsum/pcount;
+                part_stats[0] = radsum/pcount;
+                part_stats[1] = radmin;
+                part_stats[2] = radmax;
 }
 
 const int random_NTAB = 32;
@@ -990,7 +1027,7 @@ extern "C" void ParticleUpdateNonPeriodic(GPU *gpu) {
 		Device *dev = GetDeviceMemory(gpu);
 
 		const unsigned int blocks = std::ceil(gpu->pCount / (double)CUDA_BLOCK_THREADS);
-		GPUUpdateNonperiodic<<<blocks, CUDA_BLOCK_THREADS, 0, dev->Stream>>>(gpu->FieldDepth, dev->ParticleCount, dev->Particles);
+		GPUUpdateNonperiodic<<<blocks, CUDA_BLOCK_THREADS, 0, dev->Stream>>>(gpu->FieldWidth, gpu->FieldHeight, gpu->FieldDepth, dev->ParticleCount, dev->Particles);
 		gpuErrchk(cudaPeekAtLastError());
 	}
 
@@ -1002,7 +1039,7 @@ extern "C" void ParticleUpdateNonPeriodic(GPU *gpu) {
 	}
 #endif
 #else
-	GPUUpdateNonperiodic(gpu->FieldDepth, gpu->pCount, gpu->hParticles);
+	GPUUpdateNonperiodic(gpu->FieldWidth, gpu->FieldHeight, gpu->FieldDepth, gpu->pCount, gpu->hParticles);
 #endif
 
 #ifdef BUILD_PERFORMANCE_PROFILE
@@ -1059,7 +1096,7 @@ extern "C" void ParticleCalculateStatistics(GPU *gpu, const double dx, const dou
 #ifdef BUILD_CUDA
 	ParticleDownload(gpu);
 #endif
-	GPUCalculateStatistics(gpu->GridDepth, gpu->hZ, gpu->hPartCount, gpu->hVPSum, gpu->hVPSumSQ, gpu->hRPSum, gpu->hTPSum, gpu->hTFSum, gpu-> hQFSum, gpu-> hQSTARSum, gpu->pCount, gpu->hParticles, gpu->radmean, gpu->radmin, gpu-> radmax);
+	GPUCalculateStatistics(gpu->GridDepth, gpu->hZ, gpu->hPartCount, gpu->hVPSum, gpu->hVPSumSQ, gpu->hRPSum, gpu->hTPSum, gpu->hTFSum, gpu-> hQFSum, gpu-> hQSTARSum, gpu->pCount, gpu->hParticles, gpu-> part_stats);
 
 #ifdef BUILD_PERFORMANCE_PROFILE
 #ifdef BUILD_CUDA
@@ -1149,9 +1186,23 @@ void ParticleFillStatistics(GPU *gpu, double *partCount, double *vSum, double *v
                 qfSum[i] = gpu->hQFSum[i];
                 qstarSum[i] = gpu->hQSTARSum[i];
  	}
-                single_stats[0] = gpu->radmean;
-                single_stats[1] = gpu->radmin;
-                single_stats[2] = gpu->radmax;
+                single_stats[0] = gpu->part_stats[0];
+                single_stats[1] = gpu->part_stats[1];
+                single_stats[2] = gpu->part_stats[2];
+                single_stats[3] = gpu->part_stats[3];
+                single_stats[4] = gpu->part_stats[4];
+                single_stats[5] = gpu->part_stats[5];
+                single_stats[6] = gpu->part_stats[6];
+                single_stats[7] = gpu->part_stats[7];
+                single_stats[8] = gpu->part_stats[8];
+                single_stats[9] = gpu->part_stats[9];
+                single_stats[10] = gpu->part_stats[10];
+                single_stats[11] = gpu->part_stats[11];
+                single_stats[12] = gpu->part_stats[12];
+                single_stats[13] = gpu->part_stats[13];
+                single_stats[14] = gpu->part_stats[14];
+                single_stats[15] = gpu->part_stats[15];
+                single_stats[16] = gpu->part_stats[16];
 }
 
 // Particle Functions
@@ -1224,3 +1275,4 @@ void SetParameters(GPU *gpu, const Parameters *params) {
 	memcpy(&cParams, &gpu->mParameters, sizeof(Parameters));
 #endif
 }
+
